@@ -6,12 +6,24 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub struct Permissions {}
 
+impl deno_web::TimersPermission for Permissions {
+    fn allow_hrtime(&mut self) -> bool {
+        true
+    }
+}
+
 async fn run_js(file_path: &str) -> Result<(), AnyError> {
     let current_dir = std::env::current_dir()?;
     let main_module = deno_core::resolve_path(file_path, current_dir.as_path()).unwrap();
 
     let extensions = vec![
+        deno_webidl::deno_webidl::init_ops_and_esm(),
         deno_console::deno_console::init_ops_and_esm(),
+        deno_url::deno_url::init_ops_and_esm(),
+        deno_web::deno_web::init_ops_and_esm::<Permissions>(
+            std::sync::Arc::new(deno_web::BlobStore::default()),
+            None,
+        ),
         runtime::init_ops_and_esm(),
     ];
 
