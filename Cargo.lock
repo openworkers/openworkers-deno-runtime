@@ -121,16 +121,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "deno_core"
-version = "0.248.0"
+name = "deno_console"
+version = "0.136.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "974d075b6647aa6cca14ea75c3833f8996b1c3e487adcde490977f21ac14e27e"
+checksum = "598ab6c4aeb4bd4e3e31d90b8f6dd772f25ed92fc979ff12c641074ef4553030"
+dependencies = [
+ "deno_core",
+]
+
+[[package]]
+name = "deno_core"
+version = "0.256.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd5997286bcc46199bbae727f43ee65cf4bd073ac2d240a36a6ceae3bfab14ac"
 dependencies = [
  "anyhow",
  "bit-set",
  "bit-vec",
  "bytes",
  "cooked-waker",
+ "deno_core_icudata",
  "deno_ops",
  "deno_unsync",
  "futures",
@@ -151,10 +161,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "deno_ops"
-version = "0.124.0"
+name = "deno_core_icudata"
+version = "0.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1bc46bc85a26530e196a5f675dab6e06fb86b9104dc6fdc31cfc9ae1832d911"
+checksum = "a13951ea98c0a4c372f162d669193b4c9d991512de9f2381dd161027f34b26b1"
+
+[[package]]
+name = "deno_ops"
+version = "0.132.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02163d08afdd6fcf21e37c399c7425987c7170203a853052a800e80c91c2e87b"
 dependencies = [
  "proc-macro-rules",
  "proc-macro2",
@@ -505,6 +521,7 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 name = "openworkers-deno-runtime"
 version = "0.1.0"
 dependencies = [
+ "deno_console",
  "deno_core",
  "tokio",
 ]
@@ -745,9 +762,9 @@ dependencies = [
 
 [[package]]
 name = "serde_v8"
-version = "0.157.0"
+version = "0.165.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8853e607c700ade0acb853aafda7e4cc1f752f4ebb35b0e2ecbf42e784e6d0e0"
+checksum = "88862d513bcbc04a7f93b0f454dffd0b01a5c0d8e1964c7532ec55f52b9a6351"
 dependencies = [
  "bytes",
  "derive_more",
