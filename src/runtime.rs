@@ -4,7 +4,7 @@ use deno_core::ExtensionFileSourceCode;
 
 deno_core::extension!(
   runtime,
-  deps = [ deno_console ],
+  deps = [ deno_console, deno_crypto ],
   customizer = |ext: &mut Extension| {
     ext.esm_files.to_mut().push(ExtensionFileSource {
       specifier: "ext:runtime.js",

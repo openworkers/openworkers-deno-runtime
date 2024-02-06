@@ -25,6 +25,9 @@ import * as performance from "ext:deno_web/15_performance.js";
 import * as url from "ext:deno_url/00_url.js";
 import * as urlPattern from "ext:deno_url/01_urlpattern.js";
 
+// deno_crypto
+import * as crypto from "ext:deno_crypto/00_crypto.js";
+
 import { core, primordials } from "ext:core/mod.js";
 
 {
@@ -216,6 +219,12 @@ import { core, primordials } from "ext:core/mod.js";
     URL: nonEnumerable(url.URL),
     URLPattern: nonEnumerable(urlPattern.URLPattern),
     URLSearchParams: nonEnumerable(url.URLSearchParams),
+
+    // Crypto
+    CryptoKey: nonEnumerable(crypto.CryptoKey),
+    crypto: readOnly(crypto.crypto),
+    Crypto: nonEnumerable(crypto.Crypto),
+    SubtleCrypto: nonEnumerable(crypto.SubtleCrypto),
   };
 
   const globalProperties = {

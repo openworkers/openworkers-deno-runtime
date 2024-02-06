@@ -24,6 +24,7 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
             std::sync::Arc::new(deno_web::BlobStore::default()),
             None,
         ),
+        deno_crypto::deno_crypto::init_ops_and_esm(None),
         runtime::init_ops_and_esm(),
     ];
 

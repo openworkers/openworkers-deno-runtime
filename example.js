@@ -16,6 +16,8 @@ const hello = btoa("Hello World");
 console.log("btoa('Hello World'): ", hello);
 console.log(`atob(${hello}): `, atob(hello));
 
+console.log("randomUUID: ", crypto.randomUUID());
+
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
