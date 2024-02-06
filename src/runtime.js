@@ -1,5 +1,8 @@
 // runtime.js
 
+// deno_core
+import { core, primordials } from "ext:core/mod.js";
+
 // deno_webidl
 import * as webidl from "ext:deno_webidl/00_webidl.js";
 
@@ -28,7 +31,13 @@ import * as urlPattern from "ext:deno_url/01_urlpattern.js";
 // deno_crypto
 import * as crypto from "ext:deno_crypto/00_crypto.js";
 
-import { core, primordials } from "ext:core/mod.js";
+// deno_fetch
+import * as headers from "ext:deno_fetch/20_headers.js";
+import * as formData from "ext:deno_fetch/21_formdata.js";
+import * as request from "ext:deno_fetch/23_request.js";
+import * as response from "ext:deno_fetch/23_response.js";
+import * as fetch from "ext:deno_fetch/26_fetch.js";
+import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
 {
   core.print(`Will setup runtime.js\n`);
@@ -225,6 +234,25 @@ import { core, primordials } from "ext:core/mod.js";
     crypto: readOnly(crypto.crypto),
     Crypto: nonEnumerable(crypto.Crypto),
     SubtleCrypto: nonEnumerable(crypto.SubtleCrypto),
+
+    // Fetch
+    // deno_fetch - 20 - headers
+    Headers: nonEnumerable(headers.Headers),
+
+    // deno_fetch - 21 - formdata
+    FormData: nonEnumerable(formData.FormData),
+
+    // deno_fetch - 23 - request
+    Request: nonEnumerable(request.Request),
+
+    // deno_fetch - 23 - response
+    Response: nonEnumerable(response.Response),
+
+    // deno_fetch - 26 - fetch
+    fetch: nonEnumerable(fetch.fetch),
+
+    // deno_fetch - 27 - eventsource
+    EventSource: nonEnumerable(eventSource.EventSource),
   };
 
   const globalProperties = {
@@ -237,7 +265,7 @@ import { core, primordials } from "ext:core/mod.js";
 
   let hasBootstrapped = false;
 
-  globalThis.bootstrap = () => {
+  globalThis.bootstrap = (agent) => {
     core.print(`Bootstrapping runtime\n`);
 
     if (hasBootstrapped) {
@@ -249,7 +277,7 @@ import { core, primordials } from "ext:core/mod.js";
     // TODO
     numCpus = 1;
     language = "en-US";
-    userAgent = "OpenWorkers/0.0.0";
+    userAgent = agent ?? "OpenWorkers/0.0.0";
 
     // Delete globalThis.bootstrap (this function)
     delete globalThis.bootstrap;

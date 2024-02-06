@@ -1,20 +1,17 @@
 // main.rs
+mod runtime;
+mod permissions;
+
+use permissions::Permissions;
+
 use deno_core::{error::AnyError, FsModuleLoader};
-use openworkers_deno_runtime::runtime::runtime;
 use std::rc::Rc;
-
-#[derive(Clone)]
-pub struct Permissions {}
-
-impl deno_web::TimersPermission for Permissions {
-    fn allow_hrtime(&mut self) -> bool {
-        true
-    }
-}
 
 async fn run_js(file_path: &str) -> Result<(), AnyError> {
     let current_dir = std::env::current_dir()?;
     let main_module = deno_core::resolve_path(file_path, current_dir.as_path()).unwrap();
+
+    let user_agent = "OpenWorkers/0.1.0";
 
     let extensions = vec![
         deno_webidl::deno_webidl::init_ops_and_esm(),
@@ -25,7 +22,11 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
             None,
         ),
         deno_crypto::deno_crypto::init_ops_and_esm(None),
-        runtime::init_ops_and_esm(),
+        deno_fetch::deno_fetch::init_ops_and_esm::<Permissions>(deno_fetch::Options {
+            user_agent: user_agent.to_string(),
+            ..Default::default()
+        }),
+        runtime::runtime::init_ops_and_esm(),
     ];
 
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
@@ -35,13 +36,15 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
         ..Default::default()
     });
 
-    // Bootstrap the runtime
+    // Bootstrap
     {
-        // Bootstrapping stage
-        let script = format!("globalThis.bootstrap()");
+        let script = format!("globalThis.bootstrap('{}')", user_agent);
 
         js_runtime
-            .execute_script(deno_core::located_script_name!(), deno_core::ModuleCodeString::from(script))
+            .execute_script(
+                deno_core::located_script_name!(),
+                deno_core::ModuleCodeString::from(script),
+            )
             .unwrap();
     }
 

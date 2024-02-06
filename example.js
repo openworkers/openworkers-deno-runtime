@@ -34,4 +34,9 @@ setTimeout(() => console.log("Done waiting!"), 100);
 })();
 
 // TODO: error: Top-level await promise never resolved
-await wait(100);
+// TODO: should be forbidden
+// await wait(100);
+
+console.log("Response:", new Response(hello));
+
+console.log("User agent:", navigator.userAgent);
