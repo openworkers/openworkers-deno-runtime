@@ -1,3 +1,10 @@
 {
-  "cSpell.words": ["customizer", "deno", "hrtime", "primordials", "webidl"]
+  "cSpell.words": [
+    "customizer",
+    "deno",
+    "hrtime",
+    "oneshot",
+    "primordials",
+    "webidl"
+  ]
 }
