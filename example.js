@@ -1,7 +1,18 @@
 console.log("Hello from script! ");
 
-handleFetchRequest(async function fetch(request) {
-  console.log("fetch called with request: ", request);
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  return "Response from fetch!";
+handleFetchRequest(async (event) => {
+  console.log("fetch called with event: ", event);
+
+  // await wait(50);
+
+  event.respondWith(new Response("Hello from fetch!"));
 });
+
+console.log("setTimeout called");
+
+setTimeout(() => console.log("setTimeout 300 called!!!!"), 300);
+setTimeout(() => console.log("setTimeout 3000 called!!!!"), 3000);

@@ -1,5 +1,5 @@
-use crate::ext::runtime_ext;
 use crate::ext::fetch_init_ext;
+use crate::ext::runtime_ext;
 
 use crate::permissions::Permissions;
 
@@ -8,6 +8,12 @@ use std::rc::Rc;
 use tokio::sync::oneshot;
 
 use log::{debug, error};
+
+use deno_fetch::reqwest;
+use deno_fetch::reqwest::Response as HttpResponse;
+use deno_fetch::reqwest::Request as HttpRequest;
+
+use deno_core::error::AnyError;
 
 pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
     let current_dir = std::env::current_dir().unwrap();
@@ -29,6 +35,8 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
             user_agent: user_agent.to_string(),
             ..Default::default()
         }),
+
+        // OpenWorkers extensions
         fetch_init_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
     ];
@@ -53,17 +61,32 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
     }
 
     // Set fetch request
-    {
+    let res_rx = {
         debug!("set fetch request");
 
         let op_state_rc = js_runtime.op_state();
         let mut op_state = op_state_rc.borrow_mut();
 
-        let fetch_resource = crate::ext::FetchResource {
-            req: String::from("fetch-request")
+        let req = {
+            let mut req = HttpRequest::new(
+                reqwest::Method::GET,
+                reqwest::Url::parse("https://example.com").unwrap(),
+            );
+
+            let headers = req.headers_mut();
+
+            headers.append("Accept", "application/json".parse().unwrap());
+
+            req
         };
 
-        op_state.put(fetch_resource);
+        let (res_tx, res_rx) = oneshot::channel::<()>();
+
+        let res_tx = Some(res_tx);
+
+        op_state.put(crate::ext::FetchInit { req, res_tx });
+
+        res_rx
     };
 
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -77,7 +100,7 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
 
         let opts = deno_core::PollEventLoopOptions {
             wait_for_inspector: false,
-            pump_v8_message_loop: false,
+            pump_v8_message_loop: true,
         };
 
         js_runtime.run_event_loop(opts).await?;
@@ -89,6 +112,17 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
     match local.block_on(&runtime, future) {
         Ok(_) => debug!("worker thread finished"),
         Err(err) => error!("worker thread failed {:?}", err),
+    }
+
+    debug!("fetch request {:?}", res_rx);
+
+    let future = async move {
+        res_rx.await
+    };
+
+    match local.block_on(&runtime, future) {
+        Ok(res) => debug!("worker fetch replied {:?}", res),
+        Err(err) => error!("worker fetch failed {:?}", err),
     }
 
     shutdown_tx

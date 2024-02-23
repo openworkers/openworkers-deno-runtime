@@ -5,6 +5,8 @@
     "hrtime",
     "oneshot",
     "primordials",
+    "reqwest",
     "webidl"
-  ]
+  ],
+  "rust-analyzer.checkOnSave": true
 }

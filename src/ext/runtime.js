@@ -2,7 +2,7 @@
 
 // deno_core
 import { core, primordials } from "ext:core/mod.js";
-import { op_fetch_init } from "ext:core/ops";
+import { op_fetch_init, op_fetch_respond } from "ext:core/ops";
 
 // deno_webidl
 import * as webidl from "ext:deno_webidl/00_webidl.js";
@@ -134,12 +134,50 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     };
   }
 
+  class AssertionError extends Error {
+    /** @param msg {string} */
+    constructor(msg) {
+      super(msg);
+      this.name = "AssertionError";
+    }
+  }
+
+  function newFetchEvent(request, respondWith) {
+    return {
+      request,
+      respondWith,
+    };
+  }
+
   function handleFetchRequest(cb) {
     core.print("handleFetchRequest called\n");
 
-    const req = op_fetch_init(0);
+    const evt = op_fetch_init();
 
-    return cb(req);
+    const rid = evt.rid;
+
+    const signal = abortSignal.newSignal();
+
+    const inner = request.newInnerRequest(
+      evt.req.method,
+      evt.req.url,
+      () => evt.req.headers,
+      evt.req.body
+    );
+
+    const guard = headers.guardFromHeaders(
+      headers.headersFromHeaderList(inner.headerList)
+    );
+
+    const req = request.fromInnerRequest(inner, signal, guard);
+
+    return cb(
+      newFetchEvent(req, (response) => {
+        core.print("respondWith called\n");
+
+        op_fetch_respond(rid);
+      })
+    );
   }
 
   // https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope
@@ -152,6 +190,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     // DOM Exception
     // deno_web - 01 - dom_exception
     DOMException: nonEnumerable(DOMException),
+    AssertionError: nonEnumerable(AssertionError),
 
     // Timers
     // deno_web - 02 - timers
