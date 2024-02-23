@@ -16,3 +16,7 @@ console.log("setTimeout called");
 
 setTimeout(() => console.log("setTimeout 300 called!!!!"), 300);
 setTimeout(() => console.log("setTimeout 3000 called!!!!"), 3000);
+
+fetch("https://example.workers.rocks/data.json").then((response) => {
+  console.log("fetch response: ", response);
+});

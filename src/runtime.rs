@@ -2,6 +2,7 @@ use crate::ext::fetch_init_ext;
 use crate::ext::runtime_ext;
 
 use crate::permissions::Permissions;
+use crate::permissions::permissions;
 
 use std::rc::Rc;
 
@@ -37,6 +38,7 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
         // OpenWorkers extensions
         fetch_init_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
+        permissions::init_ops(),
     ];
 
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {

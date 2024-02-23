@@ -5,6 +5,12 @@ use std::path::Path;
 #[derive(Clone)]
 pub struct Permissions {}
 
+impl Permissions {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl deno_web::TimersPermission for Permissions {
     fn allow_hrtime(&mut self) -> bool {
         false
@@ -20,3 +26,8 @@ impl deno_fetch::FetchPermissions for Permissions {
         Ok(()) // TODO
     }
 }
+
+deno_core::extension!(
+    permissions,
+    state = |state| state.put::<Permissions>(Permissions::new())
+);
