@@ -1,42 +1,7 @@
 console.log("Hello from script! ");
 
-queueMicrotask(() => {
-  console.log("Hello from microtask! ");
+handleFetchRequest(async function fetch(request) {
+  console.log("fetch called with request: ", request);
+
+  return "Response from fetch!";
 });
-
-console.log("globalThis: ", globalThis);
-console.log("typeof globalThis.Deno ", typeof globalThis.Deno);
-console.log("typeof Deno ", typeof Deno);
-console.log("globalThis.Deno === Deno ", globalThis.Deno === Deno);
-console.log("typeof core ", typeof core);
-
-console.assert(false, "This is an assertion error");
-
-const hello = btoa("Hello World");
-console.log("btoa('Hello World'): ", hello);
-console.log(`atob(${hello}): `, atob(hello));
-
-console.log("randomUUID: ", crypto.randomUUID());
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-console.log("Waiting for 100 ms...");
-
-// TODO: never resolves
-setTimeout(() => console.log("Done waiting!"), 100);
-
-// TODO; no error but never resolves
-(async () => {
-  await wait(100);
-  console.log("Done waiting await!");
-})();
-
-// TODO: error: Top-level await promise never resolved
-// TODO: should be forbidden
-// await wait(100);
-
-console.log("Response:", new Response(hello));
-
-console.log("User agent:", navigator.userAgent);

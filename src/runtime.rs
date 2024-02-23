@@ -1,4 +1,5 @@
 use crate::ext::runtime_ext;
+use crate::ext::fetch_init_ext;
 
 use crate::permissions::Permissions;
 
@@ -28,6 +29,7 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
             user_agent: user_agent.to_string(),
             ..Default::default()
         }),
+        fetch_init_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
     ];
 
@@ -50,6 +52,20 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
             .unwrap();
     }
 
+    // Set fetch request
+    {
+        debug!("set fetch request");
+
+        let op_state_rc = js_runtime.op_state();
+        let mut op_state = op_state_rc.borrow_mut();
+
+        let fetch_resource = crate::ext::FetchResource {
+            req: String::from("fetch-request")
+        };
+
+        op_state.put(fetch_resource);
+    };
+
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -69,16 +85,11 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
         result.await
     };
 
-    debug!("worker thread started");
-
     let local = tokio::task::LocalSet::new();
-    let res = local.block_on(&runtime, future);
-
-    if res.is_err() {
-        error!("worker thread panicked {:?}", res.as_ref().err().unwrap());
+    match local.block_on(&runtime, future) {
+        Ok(_) => debug!("worker thread finished"),
+        Err(err) => error!("worker thread failed {:?}", err),
     }
-
-    debug!("worker thread finished");
 
     shutdown_tx
         .send(())

@@ -2,6 +2,7 @@
 
 // deno_core
 import { core, primordials } from "ext:core/mod.js";
+import { op_fetch_init } from "ext:core/ops";
 
 // deno_webidl
 import * as webidl from "ext:deno_webidl/00_webidl.js";
@@ -133,6 +134,14 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     };
   }
 
+  function handleFetchRequest(cb) {
+    core.print("handleFetchRequest called\n");
+
+    const req = op_fetch_init(0);
+
+    return cb(req);
+  }
+
   // https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope
   const windowOrWorkerGlobalScope = {
     console: nonEnumerable(
@@ -253,6 +262,9 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
     // deno_fetch - 27 - eventsource
     EventSource: nonEnumerable(eventSource.EventSource),
+
+    // fetch event
+    handleFetchRequest: readOnly(handleFetchRequest),
   };
 
   const globalProperties = {
