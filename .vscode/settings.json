@@ -1,5 +1,6 @@
 {
   "cSpell.words": [
+    "actix",
     "customizer",
     "deno",
     "hrtime",
@@ -9,5 +10,6 @@
     "reqwest",
     "webidl"
   ],
-  "rust-analyzer.checkOnSave": true
+  "rust-analyzer.checkOnSave": true,
+  "rust-analyzer.linkedProjects": ["./Cargo.toml"]
 }

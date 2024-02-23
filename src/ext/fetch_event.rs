@@ -6,17 +6,17 @@ deno_core::extension!(
 
 use std::rc::Rc;
 
+use bytes::Bytes;
 use deno_core::error::AnyError;
 use deno_core::op2;
 use deno_core::serde::Deserialize;
 use deno_core::serde::Serialize;
 use deno_core::OpState;
 use deno_core::ResourceId;
-use deno_fetch::reqwest::Request as HttpRequest;
-use deno_fetch::reqwest::Response as HttpResponse;
 use log::debug;
 
-type ResponseSender = tokio::sync::oneshot::Sender<FetchResponse>;
+type HttpResponse = http::Response<Bytes>;
+type ResponseSender = tokio::sync::oneshot::Sender<HttpResponse>;
 
 #[derive(Debug)]
 pub struct HttpResponseTx {
@@ -33,8 +33,8 @@ pub struct FetchResponse {
     body: Option<bytes::Bytes>,
 }
 
-impl Into<http::Response<bytes::Bytes>> for FetchResponse {
-    fn into(self) -> http::Response<bytes::Bytes> {
+impl Into<HttpResponse> for FetchResponse {
+    fn into(self) -> HttpResponse {
         let mut builder = http::Response::builder().status(self.status);
 
 
@@ -49,13 +49,6 @@ impl Into<http::Response<bytes::Bytes>> for FetchResponse {
     }
 }
 
-impl Into<HttpResponse> for FetchResponse {
-    fn into(self) -> HttpResponse {
-        let res: http::Response<bytes::Bytes> = self.into();
-        res.into()
-    }
-}
-
 impl From<ResponseSender> for HttpResponseTx {
     fn from(tx: ResponseSender) -> Self {
         HttpResponseTx { tx }
@@ -63,15 +56,15 @@ impl From<ResponseSender> for HttpResponseTx {
 }
 
 impl HttpResponseTx {
-    pub fn send(self, res: FetchResponse) -> Result<(), FetchResponse> {
-        self.tx.send(res)
+    pub fn send(self, res: FetchResponse) -> Result<(), HttpResponse> {
+        self.tx.send(res.into())
     }
 }
 
 #[derive(Debug)]
 pub struct FetchInit {
-    pub req: HttpRequest,
-    pub res_tx: Option<ResponseSender>,
+    pub req: http::Request<Bytes>,
+    pub res_tx: Option<ResponseSender>
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,11 +81,11 @@ struct FetchEvent {
     rid: u32,
 }
 
-impl From<HttpRequest> for InnerRequest {
-    fn from(req: HttpRequest) -> Self {
+impl From<http::Request<Bytes>> for InnerRequest {
+    fn from(req: http::Request<Bytes>) -> Self {
         InnerRequest {
             method: req.method().to_string(),
-            url: req.url().to_string(),
+            url: req.uri().to_string(),
             headers: req
                 .headers()
                 .iter()

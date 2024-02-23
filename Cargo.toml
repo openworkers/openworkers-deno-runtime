@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-web = { version = "4.5.1", features = ["macros"] } # optional = true,
 bytes = { version = "1.5.0", features = ["serde"] }
 deno_console = "0.136.0"
 deno_core = "0.256.0"
@@ -19,3 +20,11 @@ http = "0.2"
 log = "0.4.20"
 serde = { version = "1.0.197", features = ["derive"] }
 tokio = { version = "1.36.0", features = ["full"] }
+
+# [features]
+# serve = ["actix-web"]
+
+[[bin]]
+name = "serve"
+path = "src/bin/serve.rs"
+# required-features = ["serve"] 

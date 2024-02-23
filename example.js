@@ -5,13 +5,14 @@ function wait(ms) {
 }
 
 handleFetchRequest(async (event) => {
-  console.log("fetch called with event: ", event);
+  // console.log("fetch called with event: ", event);
 
-  event.respondWith(wait(50).then(() => new Response("Hello from fetch!")));
+  event.respondWith(new Response("Hello from fetch!"));
+  // event.respondWith(wait(50).then(() => new Response("Hello from fetch!")));
   // event.respondWith(fetch("https://example.workers.rocks/data.json"));
 });
 
 console.log("setTimeout called");
 
-setTimeout(() => console.log("setTimeout 300 called!!!!"), 300);
-setTimeout(() => console.log("setTimeout 900 called!!!!"), 900);
+// setTimeout(() => console.log("setTimeout 300 called!!!!"), 300);
+// setTimeout(() => console.log("setTimeout 900 called!!!!"), 900);
