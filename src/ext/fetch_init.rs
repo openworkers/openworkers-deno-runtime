@@ -15,7 +15,6 @@ use deno_core::ResourceId;
 use deno_fetch::reqwest::Request as HttpRequest;
 use deno_fetch::reqwest::Response as HttpResponse;
 use log::debug;
-use log::info;
 
 type ResponseSender = tokio::sync::oneshot::Sender<()>;
 
@@ -113,6 +112,7 @@ fn op_fetch_respond(state: &mut OpState, #[smi] response_id: ResourceId) -> Resu
     let tx = Rc::try_unwrap(tx).unwrap();
 
     let tx = tx.send(());
-    
+    debug!("op_fetch_respond tx {:?}", tx);
+
     Ok(())
 }

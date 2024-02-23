@@ -3,6 +3,7 @@
     "customizer",
     "deno",
     "hrtime",
+    "macrotask",
     "oneshot",
     "primordials",
     "reqwest",

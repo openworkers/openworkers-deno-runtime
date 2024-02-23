@@ -7,7 +7,7 @@ function wait(ms) {
 handleFetchRequest(async (event) => {
   console.log("fetch called with event: ", event);
 
-  // await wait(50);
+  await wait(50);
 
   event.respondWith(new Response("Hello from fetch!"));
 });

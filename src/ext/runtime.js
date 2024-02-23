@@ -12,6 +12,7 @@ import * as console from "ext:deno_console/01_console.js";
 
 // deno_web
 import { DOMException } from "ext:deno_web/01_dom_exception.js";
+import * as event from "ext:deno_web/02_event.js";
 import * as timers from "ext:deno_web/02_timers.js";
 import * as abortSignal from "ext:deno_web/03_abort_signal.js";
 import {} from "ext:deno_web/04_global_interfaces.js";
@@ -352,5 +353,10 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
       enumerable: false,
       configurable: true,
     });
+
+    core.setMacrotaskCallback(timers.handleTimerMacrotask);
+    core.setReportExceptionCallback(event.reportException);
+
+    // core.setWasmStreamingCallback(fetch.handleWasmStreaming);
   };
 }

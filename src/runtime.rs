@@ -13,8 +13,6 @@ use deno_fetch::reqwest;
 use deno_fetch::reqwest::Response as HttpResponse;
 use deno_fetch::reqwest::Request as HttpRequest;
 
-use deno_core::error::AnyError;
-
 pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
     let current_dir = std::env::current_dir().unwrap();
     let current_dir = current_dir.as_path();
