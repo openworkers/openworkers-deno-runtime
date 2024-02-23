@@ -16,11 +16,44 @@ use deno_fetch::reqwest::Request as HttpRequest;
 use deno_fetch::reqwest::Response as HttpResponse;
 use log::debug;
 
-type ResponseSender = tokio::sync::oneshot::Sender<()>;
+type ResponseSender = tokio::sync::oneshot::Sender<FetchResponse>;
 
 #[derive(Debug)]
 pub struct HttpResponseTx {
     tx: ResponseSender,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FetchResponse {
+    status: u16,
+
+    #[serde(rename = "headerList")]
+    headers: Vec<(String, String)>,
+
+    body: Option<bytes::Bytes>,
+}
+
+impl Into<http::Response<bytes::Bytes>> for FetchResponse {
+    fn into(self) -> http::Response<bytes::Bytes> {
+        let mut builder = http::Response::builder().status(self.status);
+
+
+        for (k, v) in self.headers {
+            builder = builder.header(k, v);
+        }
+
+        match self.body {
+            Some(body) => builder.body(body).unwrap(),
+            None => builder.body(Default::default()).unwrap(),
+        }
+    }
+}
+
+impl Into<HttpResponse> for FetchResponse {
+    fn into(self) -> HttpResponse {
+        let res: http::Response<bytes::Bytes> = self.into();
+        res.into()
+    }
 }
 
 impl From<ResponseSender> for HttpResponseTx {
@@ -30,7 +63,7 @@ impl From<ResponseSender> for HttpResponseTx {
 }
 
 impl HttpResponseTx {
-    pub fn send(self, res: ()) -> Result<(), ()> {
+    pub fn send(self, res: FetchResponse) -> Result<(), FetchResponse> {
         self.tx.send(res)
     }
 }
@@ -40,7 +73,6 @@ pub struct FetchInit {
     pub req: HttpRequest,
     pub res_tx: Option<ResponseSender>,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 struct InnerRequest {
@@ -92,26 +124,30 @@ fn op_fetch_init(state: &mut OpState) -> Result<FetchEvent, AnyError> {
 
     let req = InnerRequest::from(evt.req);
 
-    let res = HttpResponseTx::from(evt.res_tx.take().unwrap()); 
+    let res = HttpResponseTx::from(evt.res_tx.take().unwrap());
 
     let rid = state.resource_table.add::<HttpResponseTx>(res);
 
-    Ok(FetchEvent { req , rid })
+    Ok(FetchEvent { req, rid })
 }
 
 #[op2]
 #[serde]
-fn op_fetch_respond(state: &mut OpState, #[smi] response_id: ResourceId) -> Result<(), AnyError> {
-    debug!("op_fetch_respond response_id: {}", response_id);
+fn op_fetch_respond(
+    state: &mut OpState,
+    #[smi] rid: ResourceId,
+    #[serde] res: FetchResponse,
+) -> Result<(), AnyError> {
+    debug!("op_fetch_respond response_id: {} {:?}", rid, res);
 
-    let tx = match state.resource_table.take::<HttpResponseTx>(response_id) {
+    let tx = match state.resource_table.take::<HttpResponseTx>(rid) {
         Ok(tx) => tx,
         Err(err) => return Err(err),
     };
 
     let tx = Rc::try_unwrap(tx).unwrap();
 
-    let tx = tx.send(());
+    let tx = tx.send(res);
     debug!("op_fetch_respond tx {:?}", tx);
 
     Ok(())

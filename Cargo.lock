@@ -296,6 +296,9 @@ name = "bytes"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "cbc"
@@ -1391,6 +1394,7 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 name = "openworkers-deno-runtime"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "deno_console",
  "deno_core",
  "deno_crypto",

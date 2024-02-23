@@ -23,7 +23,7 @@ impl deno_fetch::FetchPermissions for Permissions {
     }
 
     fn check_read(&mut self, _p: &Path, _api_name: &str) -> Result<(), AnyError> {
-        Ok(()) // TODO
+        Err(deno_core::error::not_supported())
     }
 }
 

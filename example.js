@@ -7,16 +7,11 @@ function wait(ms) {
 handleFetchRequest(async (event) => {
   console.log("fetch called with event: ", event);
 
-  await wait(50);
-
-  event.respondWith(new Response("Hello from fetch!"));
+  event.respondWith(wait(50).then(() => new Response("Hello from fetch!")));
+  // event.respondWith(fetch("https://example.workers.rocks/data.json"));
 });
 
 console.log("setTimeout called");
 
 setTimeout(() => console.log("setTimeout 300 called!!!!"), 300);
-setTimeout(() => console.log("setTimeout 3000 called!!!!"), 3000);
-
-fetch("https://example.workers.rocks/data.json").then((response) => {
-  console.log("fetch response: ", response);
-});
+setTimeout(() => console.log("setTimeout 900 called!!!!"), 900);

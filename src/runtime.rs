@@ -1,14 +1,16 @@
 use crate::ext::fetch_init_ext;
 use crate::ext::runtime_ext;
 
-use crate::permissions::Permissions;
-use crate::permissions::permissions;
+use crate::ext::FetchInit;
+use crate::ext::FetchResponse;
+use crate::ext::Permissions;
+use crate::ext::permissions_ext;
 
 use std::rc::Rc;
 
 use tokio::sync::oneshot;
 
-use log::{debug, error};
+use log::{debug, info, error};
 
 use deno_fetch::reqwest;
 use deno_fetch::reqwest::Response as HttpResponse;
@@ -38,7 +40,7 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
         // OpenWorkers extensions
         fetch_init_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
-        permissions::init_ops(),
+        permissions_ext::init_ops(),
     ];
 
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
@@ -80,11 +82,11 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
             req
         };
 
-        let (res_tx, res_rx) = oneshot::channel::<()>();
+        let (res_tx, res_rx) = oneshot::channel::<FetchResponse>();
 
         let res_tx = Some(res_tx);
 
-        op_state.put(crate::ext::FetchInit { req, res_tx });
+        op_state.put(FetchInit { req, res_tx });
 
         res_rx
     };
@@ -121,7 +123,7 @@ pub fn run_js(path_str: &str, shutdown_tx: oneshot::Sender<()>) {
     };
 
     match local.block_on(&runtime, future) {
-        Ok(res) => debug!("worker fetch replied {:?}", res),
+        Ok(res) => info!("worker fetch replied {:?}", res),
         Err(err) => error!("worker fetch failed {:?}", err),
     }
 

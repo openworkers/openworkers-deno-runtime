@@ -2,7 +2,6 @@
 
 mod ext;
 mod runtime;
-mod permissions;
 
 use log::debug;
 

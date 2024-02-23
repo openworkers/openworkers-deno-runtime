@@ -150,7 +150,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     };
   }
 
-  function handleFetchRequest(cb) {
+  function handleFetchRequest(respondWith) {
     core.print("handleFetchRequest called\n");
 
     const evt = op_fetch_init();
@@ -172,11 +172,22 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
     const req = request.fromInnerRequest(inner, signal, guard);
 
-    return cb(
-      newFetchEvent(req, (response) => {
+    return respondWith(
+      newFetchEvent(req, async (resOrPromise) => {
         core.print("respondWith called\n");
 
-        op_fetch_respond(rid);
+        let res = core.isPromise(resOrPromise)
+          ? await resOrPromise
+          : resOrPromise;
+
+        const inner = response.toInnerResponse(res);
+
+        const body = await res.arrayBuffer();
+
+        core.print("respondWith body.len " + body?.length + "\n");
+        core.print("respondWith consumed " + JSON.stringify(body) + "\n");
+
+        op_fetch_respond(rid, { ...inner, body });
       })
     );
   }
