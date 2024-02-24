@@ -6,9 +6,11 @@
       "extensions": [
         "cschleiden.vscode-github-actions",
         "ms-vsliveshare.vsliveshare",
-        "matklad.rust-analyzer",
+        "rust-lang.rust-analyzer",
         "serayuzgur.crates",
-        "vadimcn.vscode-lldb"
+        "streetsidesoftware.code-spell-checker",
+        "vadimcn.vscode-lldb",
+        "tamasfe.even-better-toml"
       ],
       "settings": {
         "editor.formatOnSave": true,
