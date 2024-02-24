@@ -141,8 +141,31 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     }
   }
 
-  // TODO: move to fetch_event.js
-  function handleFetchRequest(callback) {
+  let fetchEventListener;
+
+  function addEventListener(type, listener) {
+    if (typeof type !== "string") {
+      throw new TypeError("Type must be a string");
+    }
+
+    if (typeof listener !== "function") {
+      throw new TypeError("Listener must be a function");
+    }
+
+    switch (type) {
+      case "fetch":
+        fetchEventListener = listener;
+        break;
+      default:
+        throw new Error(`Unsupported event type: ${type}`);
+    }
+  }
+
+  function triggerFetchEvent() {
+    if (!fetchEventListener) {
+      throw new Error("No fetch event listener registered");
+    }
+
     const evt = op_fetch_init();
 
     const rid = evt.rid;
@@ -162,7 +185,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
     const req = request.fromInnerRequest(inner, signal, guard);
 
-    return callback({
+    fetchEventListener({
       request: req,
       respondWith: async (resOrPromise) => {
         let res = core.isPromise(resOrPromise)
@@ -191,7 +214,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     }
 
     // TODO: handle other events
-    throw new Error("Not implemented");
+    throw new Error(`Event handling for ${event.type} not implemented`);
   }
 
   // https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope
@@ -319,7 +342,11 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     EventSource: nonEnumerable(eventSource.EventSource),
 
     // fetch event
-    handleFetchRequest: readOnly(handleFetchRequest),
+    triggerFetchEvent: nonEnumerable(triggerFetchEvent),
+    addEventListener: nonEnumerable(addEventListener),
+
+    // Branding as a WebIDL object
+    [webidl.brand]: nonEnumerable(webidl.brand),
   };
 
   const globalProperties = {
@@ -338,6 +365,10 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
   // Notification that the core received an unhandled promise rejection that is about to
   // terminate the runtime. If we can handle it, attempt to do so.
   function processUnhandledPromiseRejection(promise, reason) {
+    core.print(
+      `Unhandled promise rejection: ${reason} ${reason.stack || ""}\n`
+    );
+
     const rejectionEvent = new event.PromiseRejectionEvent(
       "unhandledrejection",
       {
@@ -419,10 +450,9 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
     event.setEventTargetData(globalThis);
     event.saveGlobalThisReference(globalThis);
+
     event.defineEventHandler(globalThis, "error");
-    event.defineEventHandler(globalThis, "load");
-    event.defineEventHandler(globalThis, "beforeunload");
-    event.defineEventHandler(globalThis, "unload");
+    event.defineEventHandler(globalThis, "message");
     event.defineEventHandler(globalThis, "unhandledrejection");
 
     core.setMacrotaskCallback(timers.handleTimerMacrotask);

@@ -1,9 +1,9 @@
 use crate::ext::fetch_init_ext;
 use crate::ext::runtime_ext;
 
+use crate::ext::permissions_ext;
 use crate::ext::FetchInit;
 use crate::ext::Permissions;
-use crate::ext::permissions_ext;
 
 use std::rc::Rc;
 
@@ -13,7 +13,11 @@ use tokio::sync::oneshot;
 
 use log::{debug, error};
 
-pub fn run_js(path_str: &str, evt: Option<FetchInit>, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
+pub fn run_js(
+    path_str: &str,
+    evt: Option<FetchInit>,
+    shutdown_tx: oneshot::Sender<Option<AnyError>>,
+) {
     let current_dir = std::env::current_dir().unwrap();
     let current_dir = current_dir.as_path();
     let main_module = deno_core::resolve_path(path_str, current_dir).unwrap();
@@ -33,7 +37,6 @@ pub fn run_js(path_str: &str, evt: Option<FetchInit>, shutdown_tx: oneshot::Send
             user_agent: user_agent.to_string(),
             ..Default::default()
         }),
-
         // OpenWorkers extensions
         fetch_init_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
@@ -80,6 +83,16 @@ pub fn run_js(path_str: &str, evt: Option<FetchInit>, shutdown_tx: oneshot::Send
         let mod_id = js_runtime.load_main_module(&main_module, None).await?;
         let result = js_runtime.mod_evaluate(mod_id);
 
+        {
+            // Trigger fetch event
+            js_runtime
+                .execute_script(
+                    deno_core::located_script_name!(),
+                    deno_core::ModuleCodeString::from(format!("globalThis.triggerFetchEvent()")),
+                )
+                .unwrap();
+        }
+
         let opts = deno_core::PollEventLoopOptions {
             wait_for_inspector: false,
             pump_v8_message_loop: true,
@@ -97,12 +110,12 @@ pub fn run_js(path_str: &str, evt: Option<FetchInit>, shutdown_tx: oneshot::Send
             shutdown_tx
                 .send(None)
                 .expect("failed to send shutdown signal");
-        },
+        }
         Err(err) => {
             error!("worker thread failed {:?}", err);
             shutdown_tx
                 .send(Some(err))
                 .expect("failed to send shutdown signal");
-        },
+        }
     }
 }

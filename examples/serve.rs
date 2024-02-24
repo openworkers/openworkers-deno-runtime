@@ -58,16 +58,27 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
         }
     }
 
-    let res = response_rx.await.unwrap();
-    debug!("worker fetch replied {} {:?}", res.status(), start.elapsed());
+    match response_rx.await {
+        Ok(res) => {
+            debug!(
+                "worker fetch replied {} {:?}",
+                res.status(),
+                start.elapsed()
+            );
 
-    let mut rb = HttpResponse::build(res.status());
+            let mut rb = HttpResponse::build(res.status());
 
-    for (k, v) in res.headers() {
-        rb.append_header((k, v));
+            for (k, v) in res.headers() {
+                rb.append_header((k, v));
+            }
+
+            rb.body(res.body().clone())
+        }
+        Err(err) => {
+            error!("worker fetch error: {}, ensure the worker registered a listener for the 'fetch' event", err);
+            HttpResponse::InternalServerError().body(err.to_string())
+        }
     }
-
-    rb.body(res.body().clone())
 }
 
 fn get_path() -> String {
