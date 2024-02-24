@@ -5,6 +5,7 @@ use log::error;
 use openworkers_runtime::run_js;
 use openworkers_runtime::AnyError;
 use openworkers_runtime::FetchInit;
+use openworkers_runtime::Task;
 
 use tokio::sync::oneshot;
 
@@ -32,7 +33,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     let _res = {
         let file_path = file_path.clone();
 
-        let evt = Some(FetchInit {
+        let task = Task::Fetch(FetchInit {
             req: http_v02::Request::builder()
                 .uri(req.uri())
                 .body(Default::default())
@@ -40,7 +41,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
             res_tx: Some(response_tx),
         });
 
-        std::thread::spawn(move || run_js(file_path.as_str(), evt, shutdown_tx))
+        std::thread::spawn(move || run_js(file_path.as_str(), task, shutdown_tx))
     };
 
     debug!("js worker for {:?} started", file_path);
@@ -84,7 +85,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
 fn get_path() -> String {
     std::env::args()
         .nth(1)
-        .unwrap_or_else(|| String::from("examples/hello.js"))
+        .unwrap_or_else(|| String::from("examples/serve.js"))
 }
 
 #[actix_web::main]

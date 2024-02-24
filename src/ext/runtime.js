@@ -142,6 +142,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
   }
 
   let fetchEventListener;
+  let scheduledEventListener;
 
   function addEventListener(type, listener) {
     if (typeof type !== "string") {
@@ -156,9 +157,27 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
       case "fetch":
         fetchEventListener = listener;
         break;
+      case "scheduled":
+        scheduledEventListener = listener;
+        break;
       default:
         throw new Error(`Unsupported event type: ${type}`);
     }
+  }
+
+  function triggerScheduledEvent(scheduledTime) {
+    if (!scheduledEventListener) {
+      throw new Error("No scheduled event listener registered");
+    }
+
+    scheduledEventListener({
+      scheduledTime,
+      waitUntil: () => {
+        // TODO: it works for now because we are waiting for
+        // the worker to terminate but we should return a promise
+        // and look for this promise to be resolved
+      },
+    });
   }
 
   function triggerFetchEvent() {
@@ -341,7 +360,8 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     // deno_fetch - 27 - eventsource
     EventSource: nonEnumerable(eventSource.EventSource),
 
-    // fetch event
+    // Events
+    triggerScheduledEvent: nonEnumerable(triggerScheduledEvent),
     triggerFetchEvent: nonEnumerable(triggerFetchEvent),
     addEventListener: nonEnumerable(addEventListener),
 

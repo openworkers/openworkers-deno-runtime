@@ -2,8 +2,9 @@ use crate::ext::fetch_init_ext;
 use crate::ext::runtime_ext;
 
 use crate::ext::permissions_ext;
-use crate::ext::FetchInit;
 use crate::ext::Permissions;
+use crate::task::TaskType;
+use crate::Task;
 
 use std::rc::Rc;
 
@@ -13,11 +14,7 @@ use tokio::sync::oneshot;
 
 use log::{debug, error};
 
-pub fn run_js(
-    path_str: &str,
-    evt: Option<FetchInit>,
-    shutdown_tx: oneshot::Sender<Option<AnyError>>,
-) {
+pub fn run_js(path_str: &str, task: Task, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
     let current_dir = std::env::current_dir().unwrap();
     let current_dir = current_dir.as_path();
     let main_module = deno_core::resolve_path(path_str, current_dir).unwrap();
@@ -62,17 +59,22 @@ pub fn run_js(
             .unwrap();
     }
 
-    // Set fetch request
+    let task_type = task.task_type();
+
     {
-        debug!("set fetch request");
+        match task {
+            Task::Fetch(evt) => {
+                debug!("set fetch request");
 
-        let op_state_rc = js_runtime.op_state();
-        let mut op_state = op_state_rc.borrow_mut();
+                let op_state_rc = js_runtime.op_state();
+                let mut op_state = op_state_rc.borrow_mut();
 
-        if let Some(evt) = evt {
-            op_state.put(evt);
+                op_state.put(evt);
+            }
+            Task::Scheduled => {}
+            Task::None => {}
         }
-    };
+    }
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -83,12 +85,15 @@ pub fn run_js(
         let mod_id = js_runtime.load_main_module(&main_module, None).await?;
         let result = js_runtime.mod_evaluate(mod_id);
 
-        {
-            // Trigger fetch event
+        if !task_type.is_none() {
             js_runtime
                 .execute_script(
                     deno_core::located_script_name!(),
-                    deno_core::ModuleCodeString::from(format!("globalThis.triggerFetchEvent()")),
+                    deno_core::ModuleCodeString::from(match task_type {
+                        TaskType::Fetch => format!("globalThis.triggerFetchEvent()"),
+                        TaskType::Scheduled => format!("globalThis.triggerScheduledEvent(Date.now())"),
+                        TaskType::None => unreachable!(),
+                    }),
                 )
                 .unwrap();
         }
