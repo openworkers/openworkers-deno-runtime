@@ -1,9 +1,3 @@
-deno_core::extension!(
-    fetch_init,
-    deps = [deno_console, deno_fetch],
-    ops = [op_fetch_init, op_fetch_respond],
-);
-
 use std::rc::Rc;
 
 use bytes::Bytes;
@@ -15,14 +9,17 @@ use deno_core::OpState;
 use deno_core::ResourceId;
 use log::debug;
 
-type HttpResponse = http::Response<Bytes>;
+type HttpRequest = http_v02::Request<Bytes>;
+type HttpResponse = http_v02::Response<Bytes>;
 type ResponseSender = tokio::sync::oneshot::Sender<HttpResponse>;
 
 #[derive(Debug)]
-pub struct HttpResponseTx {
+struct HttpResponseTx {
     tx: ResponseSender,
 }
 
+/// FetchResponse is a struct that represents the response
+/// from a fetch request that comes from js realm.
 #[derive(Debug, Deserialize)]
 pub struct FetchResponse {
     status: u16,
@@ -30,12 +27,12 @@ pub struct FetchResponse {
     #[serde(rename = "headerList")]
     headers: Vec<(String, String)>,
 
-    body: Option<bytes::Bytes>,
+    body: Option<Bytes>,
 }
 
 impl Into<HttpResponse> for FetchResponse {
     fn into(self) -> HttpResponse {
-        let mut builder = http::Response::builder().status(self.status);
+        let mut builder = http_v02::Response::builder().status(self.status);
 
 
         for (k, v) in self.headers {
@@ -63,11 +60,11 @@ impl HttpResponseTx {
 
 #[derive(Debug)]
 pub struct FetchInit {
-    pub req: http::Request<Bytes>,
+    pub req: HttpRequest,
     pub res_tx: Option<ResponseSender>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct InnerRequest {
     method: String,
     url: String,
@@ -75,14 +72,14 @@ struct InnerRequest {
     body: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 struct FetchEvent {
     req: InnerRequest,
     rid: u32,
 }
 
-impl From<http::Request<Bytes>> for InnerRequest {
-    fn from(req: http::Request<Bytes>) -> Self {
+impl From<HttpRequest> for InnerRequest {
+    fn from(req: HttpRequest) -> Self {
         InnerRequest {
             method: req.method().to_string(),
             url: req.uri().to_string(),
@@ -95,6 +92,12 @@ impl From<http::Request<Bytes>> for InnerRequest {
         }
     }
 }
+
+deno_core::extension!(
+    fetch_init,
+    deps = [deno_console, deno_fetch],
+    ops = [op_fetch_init, op_fetch_respond],
+);
 
 impl deno_core::Resource for FetchInit {
     fn close(self: Rc<Self>) {
@@ -131,7 +134,7 @@ fn op_fetch_respond(
     #[smi] rid: ResourceId,
     #[serde] res: FetchResponse,
 ) -> Result<(), AnyError> {
-    debug!("op_fetch_respond response_id: {} {:?}", rid, res);
+    debug!("op_fetch_respond with status {}", res.status);
 
     let tx = match state.resource_table.take::<HttpResponseTx>(rid) {
         Ok(tx) => tx,

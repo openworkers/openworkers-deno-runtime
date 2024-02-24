@@ -7,11 +7,13 @@ use crate::ext::permissions_ext;
 
 use std::rc::Rc;
 
+use deno_core::error::AnyError;
+
 use tokio::sync::oneshot;
 
 use log::{debug, error};
 
-pub fn run_js(path_str: &str, evt: Option<FetchInit>, shutdown_tx: oneshot::Sender<()>) {
+pub fn run_js(path_str: &str, evt: Option<FetchInit>, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
     let current_dir = std::env::current_dir().unwrap();
     let current_dir = current_dir.as_path();
     let main_module = deno_core::resolve_path(path_str, current_dir).unwrap();
@@ -90,11 +92,17 @@ pub fn run_js(path_str: &str, evt: Option<FetchInit>, shutdown_tx: oneshot::Send
 
     let local = tokio::task::LocalSet::new();
     match local.block_on(&runtime, future) {
-        Ok(_) => debug!("worker thread finished"),
-        Err(err) => error!("worker thread failed {:?}", err),
+        Ok(_) => {
+            debug!("worker thread finished");
+            shutdown_tx
+                .send(None)
+                .expect("failed to send shutdown signal");
+        },
+        Err(err) => {
+            error!("worker thread failed {:?}", err);
+            shutdown_tx
+                .send(Some(err))
+                .expect("failed to send shutdown signal");
+        },
     }
-
-    shutdown_tx
-        .send(())
-        .expect("failed to send shutdown signal");
 }

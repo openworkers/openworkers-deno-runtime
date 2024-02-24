@@ -1,6 +1,9 @@
 use bytes::Bytes;
+
 use log::debug;
+use log::error;
 use openworkers_deno_runtime::run_js;
+use openworkers_deno_runtime::AnyError;
 use openworkers_deno_runtime::FetchInit;
 
 use tokio::sync::oneshot;
@@ -12,23 +15,24 @@ use actix_web::web::Data;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 
+
 struct AppState {
     path: String,
 }
 
 async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse {
-    debug!("handle_request {:?}", req);
+    debug!("handle_request {} {}", req.method(), req.uri());
 
     let file_path = data.path.clone();
 
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-    let (response_tx, response_rx) = oneshot::channel::<http::Response<Bytes>>();
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
+    let (response_tx, response_rx) = oneshot::channel::<http_v02::Response<Bytes>>();
 
     let res = {
         let file_path = file_path.clone();
 
         let evt = Some(FetchInit {
-            req: http::Request::builder()
+            req: http_v02::Request::builder()
                 .uri(req.uri())
                 .body(Default::default())
                 .unwrap(),
@@ -38,15 +42,23 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
         std::thread::spawn(move || run_js(file_path.as_str(), evt, shutdown_tx))
     };
 
-    debug!("js worker for {:?} started {:?}", file_path, res);
+    debug!("js worker for {:?} started", file_path);
 
     // wait for shutdown signal
-    let end = shutdown_rx.await;
-
-    debug!("js worker for {:?} stopped {:?}", file_path, end);
+    match shutdown_rx.await {
+        Ok(None) => debug!("js worker for {:?} stopped", file_path),
+        Ok(Some(err)) => {
+            error!("js worker for {:?} error: {}", file_path, err);
+            return HttpResponse::InternalServerError().body(err.to_string());
+        }
+        Err(err) => {
+            error!("js worker for {:?} error: {}", file_path, err);
+            return HttpResponse::InternalServerError().body(err.to_string());
+        }
+    }
 
     let res = response_rx.await.unwrap();
-    debug!("worker fetch replied {:?}", res);
+    debug!("worker fetch replied {}", res.status());
 
     let mut rb = HttpResponse::build(res.status());
 

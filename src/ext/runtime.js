@@ -42,8 +42,6 @@ import * as fetch from "ext:deno_fetch/26_fetch.js";
 import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
 {
-  core.print(`Will setup runtime.js\n`);
-
   const { ObjectDefineProperties, ObjectDefineProperty, SymbolFor } =
     primordials;
 
@@ -143,16 +141,8 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     }
   }
 
-  function newFetchEvent(request, respondWith) {
-    return {
-      request,
-      respondWith,
-    };
-  }
-
-  function handleFetchRequest(respondWith) {
-    core.print("handleFetchRequest called\n");
-
+  // TODO: move to fetch_event.js
+  function handleFetchRequest(callback) {
     const evt = op_fetch_init();
 
     const rid = evt.rid;
@@ -172,28 +162,42 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
     const req = request.fromInnerRequest(inner, signal, guard);
 
-    return respondWith(
-      newFetchEvent(req, async (resOrPromise) => {
-        core.print("respondWith called\n");
-
+    return callback({
+      request: req,
+      respondWith: async (resOrPromise) => {
         let res = core.isPromise(resOrPromise)
           ? await resOrPromise
           : resOrPromise;
+
+        if (!(res instanceof response.Response)) {
+          throw new TypeError("Response must be a Response object");
+        }
 
         const inner = response.toInnerResponse(res);
 
         const body = await res.arrayBuffer();
 
-        core.print("respondWith body.len " + body?.length + "\n");
-        core.print("respondWith consumed " + JSON.stringify(body) + "\n");
-
         op_fetch_respond(rid, { ...inner, body });
-      })
-    );
+      },
+    });
+  }
+
+  function globalThisDispatchEvent(event) {
+    const date = `${new Date().toISOString().split(".")[0]}Z`;
+    core.print(`[${date} EVENT globalThisDispatchEvent: ${event.type}\n`);
+
+    if (event.type === "error") {
+      throw event.error;
+    }
+
+    // TODO: handle other events
+    throw new Error("Not implemented");
   }
 
   // https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope
   const windowOrWorkerGlobalScope = {
+    dispatchEvent: nonEnumerable(globalThisDispatchEvent),
+
     console: nonEnumerable(
       // https://choubey.gitbook.io/internals-of-deno/bridge/4.2-print
       new console.Console((msg, level) => core.print(msg, level > 1))
@@ -328,9 +332,57 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
   let hasBootstrapped = false;
 
-  globalThis.bootstrap = (agent) => {
-    core.print(`Bootstrapping runtime\n`);
+  core.setUnhandledPromiseRejectionHandler(processUnhandledPromiseRejection);
+  core.setHandledPromiseRejectionHandler(processRejectionHandled);
 
+  // Notification that the core received an unhandled promise rejection that is about to
+  // terminate the runtime. If we can handle it, attempt to do so.
+  function processUnhandledPromiseRejection(promise, reason) {
+    const rejectionEvent = new event.PromiseRejectionEvent(
+      "unhandledrejection",
+      {
+        cancelable: true,
+        promise,
+        reason,
+      }
+    );
+
+    // Note that the handler may throw, causing a recursive "error" event
+    globalThis.dispatchEvent(rejectionEvent);
+
+    // If event was not yet prevented, try handing it off to Node compat layer
+    // (if it was initialized)
+    if (
+      !rejectionEvent.defaultPrevented &&
+      typeof internals.nodeProcessUnhandledRejectionCallback !== "undefined"
+    ) {
+      internals.nodeProcessUnhandledRejectionCallback(rejectionEvent);
+    }
+
+    // If event was not prevented (or "unhandledrejection" listeners didn't
+    // throw) we will let Rust side handle it.
+    if (rejectionEvent.defaultPrevented) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function processRejectionHandled(promise, reason) {
+    const rejectionHandledEvent = new event.PromiseRejectionEvent(
+      "rejectionhandled",
+      { promise, reason }
+    );
+
+    // Note that the handler may throw, causing a recursive "error" event
+    globalThis.dispatchEvent(rejectionHandledEvent);
+
+    if (typeof internals.nodeProcessRejectionHandledCallback !== "undefined") {
+      internals.nodeProcessRejectionHandledCallback(rejectionHandledEvent);
+    }
+  }
+
+  globalThis.bootstrap = (agent) => {
     if (hasBootstrapped) {
       throw new Error("Worker runtime already bootstrapped");
     }
@@ -364,6 +416,14 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
       enumerable: false,
       configurable: true,
     });
+
+    event.setEventTargetData(globalThis);
+    event.saveGlobalThisReference(globalThis);
+    event.defineEventHandler(globalThis, "error");
+    event.defineEventHandler(globalThis, "load");
+    event.defineEventHandler(globalThis, "beforeunload");
+    event.defineEventHandler(globalThis, "unload");
+    event.defineEventHandler(globalThis, "unhandledrejection");
 
     core.setMacrotaskCallback(timers.handleTimerMacrotask);
     core.setReportExceptionCallback(event.reportException);
