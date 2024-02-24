@@ -2,9 +2,9 @@ use bytes::Bytes;
 
 use log::debug;
 use log::error;
-use openworkers_deno_runtime::run_js;
-use openworkers_deno_runtime::AnyError;
-use openworkers_deno_runtime::FetchInit;
+use openworkers_runtime::run_js;
+use openworkers_runtime::AnyError;
+use openworkers_runtime::FetchInit;
 
 use tokio::sync::oneshot;
 
@@ -15,7 +15,6 @@ use actix_web::web::Data;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 
-
 struct AppState {
     path: String,
 }
@@ -23,12 +22,14 @@ struct AppState {
 async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse {
     debug!("handle_request {} {}", req.method(), req.uri());
 
+    let start = tokio::time::Instant::now();
+
     let file_path = data.path.clone();
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
     let (response_tx, response_rx) = oneshot::channel::<http_v02::Response<Bytes>>();
 
-    let res = {
+    let _res = {
         let file_path = file_path.clone();
 
         let evt = Some(FetchInit {
@@ -58,7 +59,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     }
 
     let res = response_rx.await.unwrap();
-    debug!("worker fetch replied {}", res.status());
+    debug!("worker fetch replied {} {:?}", res.status(), start.elapsed());
 
     let mut rb = HttpResponse::build(res.status());
 
@@ -67,6 +68,12 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     }
 
     rb.body(res.body().clone())
+}
+
+fn get_path() -> String {
+    std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| String::from("examples/hello.js"))
 }
 
 #[actix_web::main]
@@ -79,11 +86,20 @@ async fn main() -> std::io::Result<()> {
 
     debug!("start main");
 
+    // Check that the path is correct
+    {
+        let path = get_path();
+        if !std::path::Path::new(&path).is_file() {
+            eprintln!("file not found: {}", path);
+            std::process::exit(1);
+        }
+    }
+
+    println!("Listening on http://localhost:8080");
+
     HttpServer::new(|| {
         App::new()
-            .app_data(Data::new(AppState {
-                path: String::from("example.js"),
-            }))
+            .app_data(Data::new(AppState { path: get_path() }))
             .default_service(web::to(handle_request))
     })
     .bind(("127.0.0.1", 8080))?
