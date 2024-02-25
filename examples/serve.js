@@ -17,3 +17,5 @@ async function handleRequest(request) {
 
   return new Response("Hello world");
 }
+
+setTimeout(() => console.log("Hello from timeout"), 500);

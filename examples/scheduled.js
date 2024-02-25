@@ -13,9 +13,11 @@ async function handleSchedule(scheduledDate) {
     new Date(scheduledDate).toISOString()
   );
 
-  const res = await fetch("https://example.workers.rocks/data.json");
+  const res = await fetch("https://echo.workers.rocks/data.json");
 
   console.log("Done waiting!", res.status, await res.json());
 
   return "Called deploy hook!";
 }
+
+setTimeout(() => console.log("Hello from timeout"), 2000);

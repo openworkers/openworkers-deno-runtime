@@ -47,17 +47,19 @@ async fn main() -> Result<(), ()> {
 
     debug!("js worker for {:?} started", file_path);
 
-    // wait for completion signal
-    match done_rx.await {
-        Ok(()) => debug!("js task for {file_path} completed"),
-        Err(err) => error!("js task for {file_path} did not complete: {err}"),
-    }
-
-    // wait for shutdown signal
-    match shutdown_rx.await {
-        Ok(None) => debug!("js worker for {file_path} stopped"),
-        Ok(Some(err)) => error!("js worker for {file_path} error: {err}"),
-        Err(err) => error!("js worker for {file_path} error: {err}"),
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => debug!("ctrl-c received"),
+        // wait for completion signal
+        done = done_rx => match done {
+            Ok(()) => debug!("js task for {file_path} completed"),
+            Err(err) => error!("js task for {file_path} did not complete: {err}"),
+        },
+        // wait for shutdown signal
+        end = shutdown_rx => match end {
+            Ok(None) => error!("js worker for {file_path} stopped before replying"),
+            Ok(Some(err)) => error!("js worker for {file_path} error: {err}"),
+            Err(err) => error!("js worker for {file_path} error: {err}"),
+        }
     }
 
     Ok(())

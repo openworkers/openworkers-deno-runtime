@@ -150,17 +150,17 @@ impl Worker {
 
         let local = tokio::task::LocalSet::new();
         match local.block_on(&runtime, future) {
-            Ok(_) => {
+            Ok(()) => {
                 log::debug!("worker thread finished");
                 self.shutdown_tx
                     .send(None)
-                    .expect("failed to send shutdown signal");
+                    .unwrap_or_else(|err| log::warn!("failed to send shutdown signal (ok) {:?}", err));
             }
             Err(err) => {
                 log::error!("worker thread failed {:?}", err);
                 self.shutdown_tx
                     .send(Some(err))
-                    .expect("failed to send shutdown signal");
+                    .unwrap_or_else(|err| log::warn!("failed to send shutdown signal ({:?})", err));
             }
         }
     }

@@ -37,46 +37,54 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
         .body(Default::default())
         .unwrap();
 
-    std::thread::spawn(move || Worker::new(url, shutdown_tx).exec(Task::Fetch(Some(FetchInit::new(req, response_tx)))));
+    let handle = std::thread::spawn(move || Worker::new(url, shutdown_tx).exec(Task::Fetch(Some(FetchInit::new(req, response_tx)))));
 
     let url = url_clone.clone();
 
     debug!("js worker for {:?} started", url);
 
-    // wait for shutdown signal
-    match shutdown_rx.await {
-        Ok(None) => debug!("js worker for {:?} stopped", url.path()),
-        Ok(Some(err)) => {
-            error!("js worker for {:?} error: {}", url.path(), err);
-            return HttpResponse::InternalServerError().body(err.to_string());
-        }
-        Err(err) => {
-            error!("js worker for {:?} error: {}", url.path(), err);
-            return HttpResponse::InternalServerError().body(err.to_string());
-        }
-    }
+    let response = tokio::select! {
+        res = response_rx => {
+            match res {
+                Ok(res) => {
+                    let mut rb = HttpResponse::build(res.status());
 
-    match response_rx.await {
-        Ok(res) => {
-            debug!(
-                "worker fetch replied {} {:?}",
-                res.status(),
-                start.elapsed()
-            );
+                    for (k, v) in res.headers() {
+                        rb.append_header((k, v));
+                    }
 
-            let mut rb = HttpResponse::build(res.status());
-
-            for (k, v) in res.headers() {
-                rb.append_header((k, v));
+                    rb.body(res.body().clone())
+                }
+                Err(err) => {
+                    error!("worker fetch error: {}, ensure the worker registered a listener for the 'fetch' event", err);
+                    HttpResponse::InternalServerError().body(err.to_string())
+                }
             }
+        },
+        end = shutdown_rx => {
+            match end {
+                Ok(None) => {
+                    error!("js worker for {} exited before replying", url.path());
+                    HttpResponse::InternalServerError().body("js worker exited")
+                },
+                Ok(Some(err)) => {
+                    error!("js worker for {} error: {err}", url.path(), );
+                    HttpResponse::InternalServerError().body(err.to_string())
+                }
+                Err(err) => {
+                    error!("js worker for {} error: {err}", url.path());
+                    HttpResponse::InternalServerError().body(err.to_string())
+                }
+            }
+        }
+    };
 
-            rb.body(res.body().clone())
-        }
-        Err(err) => {
-            error!("worker fetch error: {}, ensure the worker registered a listener for the 'fetch' event", err);
-            HttpResponse::InternalServerError().body(err.to_string())
-        }
-    }
+    debug!("handle_request done {}", start.elapsed().as_millis());
+
+    // Wait for the worker to finish; we should terminate the worker if it's still running after a reply
+    handle.join().unwrap();
+
+    response
 }
 
 fn get_path() -> String {
