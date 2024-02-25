@@ -2,11 +2,11 @@ use bytes::Bytes;
 
 use log::debug;
 use log::error;
-use openworkers_runtime::run_js;
 use openworkers_runtime::AnyError;
 use openworkers_runtime::FetchInit;
 use openworkers_runtime::Task;
 use openworkers_runtime::Url;
+use openworkers_runtime::Worker;
 
 use tokio::sync::oneshot;
 
@@ -18,7 +18,7 @@ use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 
 struct AppState {
-    url: Url
+    url: Url,
 }
 
 async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse {
@@ -32,22 +32,15 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
     let (response_tx, response_rx) = oneshot::channel::<http_v02::Response<Bytes>>();
 
-    // let snapshot = data.snap.lock().unwrap();
-    // let snapshot = Snapshot::Boxed(snapshot.bytes().take());
+    let task = Task::Fetch(Some(FetchInit {
+        res_tx: Some(response_tx),
+        req: http_v02::Request::builder()
+            .uri(req.uri())
+            .body(Default::default())
+            .unwrap(),
+    }));
 
-    let _res = {
-        let task = Task::Fetch(FetchInit {
-            req: http_v02::Request::builder()
-                .uri(req.uri())
-                .body(Default::default())
-                .unwrap(),
-            res_tx: Some(response_tx),
-        });
-
-        std::thread::spawn(move || {
-            run_js(url, task, shutdown_tx)
-        })
-    };
+    Worker::new(url, shutdown_tx).exec(task);
 
     let url = url_clone.clone();
 
@@ -115,9 +108,6 @@ async fn main() -> std::io::Result<()> {
     }
 
     println!("Listening on http://localhost:8080");
-
-    // let snapshot = openworkers_runtime::create_runtime_snapshot();
-    // let snapshot = Arc::new(Mutex::new(snapshot));
 
     HttpServer::new(|| {
         App::new()

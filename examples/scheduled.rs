@@ -1,9 +1,9 @@
 use log::debug;
 use log::error;
 use openworkers_runtime::module_url;
-use openworkers_runtime::run_js;
 use openworkers_runtime::AnyError;
 use openworkers_runtime::Task;
+use openworkers_runtime::Worker;
 use tokio::sync::oneshot;
 
 fn get_path() -> String {
@@ -34,23 +34,17 @@ async fn main() -> Result<(), ()> {
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
 
-    let _res = {
-        let url = module_url(file_path.as_str());
+    let url = module_url(file_path.as_str());
 
-        std::thread::spawn(move || run_js(url, Task::Scheduled, shutdown_tx))
-    };
+    std::thread::spawn(move || Worker::new(url, shutdown_tx).exec(Task::Scheduled));
 
     debug!("js worker for {:?} started", file_path);
 
     // wait for shutdown signal
     match shutdown_rx.await {
         Ok(None) => debug!("js worker for {:?} stopped", file_path),
-        Ok(Some(err)) => {
-            error!("js worker for {:?} error: {}", file_path, err);
-        }
-        Err(err) => {
-            error!("js worker for {:?} error: {}", file_path, err);
-        }
+        Ok(Some(err)) => error!("js worker for {:?} error: {}", file_path, err),
+        Err(err) => error!("js worker for {:?} error: {}", file_path, err),
     }
 
     Ok(())

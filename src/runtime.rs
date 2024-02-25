@@ -3,18 +3,18 @@ use crate::ext::permissions_ext;
 use crate::ext::runtime_ext;
 
 use crate::ext::Permissions;
-use crate::task::TaskType;
 use crate::Task;
 
 use std::rc::Rc;
 
 use deno_core::error::AnyError;
+use deno_core::JsRuntime;
 
 use deno_core::url::Url;
 use deno_core::Snapshot;
 use tokio::sync::oneshot;
 
-use log::{debug, error};
+use log::debug;
 
 const USER_AGENT: &str = "OpenWorkers/0.1.0";
 
@@ -67,106 +67,98 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
     exts
 }
 
-pub fn run_js(main_module: Url, task: Task, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
-    let mut js_runtime = match runtime_snapshot() {
-        None => {
-            debug!("no runtime snapshot");
-            deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-                is_main: true,
-                extensions: extensions(false),
-                module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-                startup_snapshot: None,
-                ..Default::default()
-            })
-        }
-        Some(snapshot) => {
-            debug!("using runtime snapshot");
-            deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-                is_main: true,
-                extensions: extensions(true),
-                module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-                startup_snapshot: Some(snapshot),
-                ..Default::default()
-            })
-        }
-    };
+pub struct Worker {
+    main_module: Url,
+    js_runtime: deno_core::JsRuntime,
+    shutdown_tx: oneshot::Sender<Option<AnyError>>,
+}
 
-    // Bootstrap
-    {
-        let script = format!("globalThis.bootstrap('{}')", USER_AGENT);
-
-        js_runtime
-            .execute_script(
-                deno_core::located_script_name!(),
-                deno_core::ModuleCodeString::from(script),
-            )
-            .unwrap();
-    }
-
-    let task_type = task.task_type();
-
-    {
-        match task {
-            Task::Fetch(evt) => {
-                debug!("set fetch request");
-
-                let op_state_rc = js_runtime.op_state();
-                let mut op_state = op_state_rc.borrow_mut();
-
-                op_state.put(evt);
+impl Worker {
+    pub fn new(main_module: Url, shutdown_tx: oneshot::Sender<Option<AnyError>>) -> Self {
+        let mut js_runtime = match runtime_snapshot() {
+            None => {
+                debug!("no runtime snapshot");
+                JsRuntime::new(deno_core::RuntimeOptions {
+                    is_main: true,
+                    extensions: extensions(false),
+                    module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
+                    startup_snapshot: None,
+                    ..Default::default()
+                })
             }
-            Task::Scheduled => {}
-            Task::None => {}
-        }
-    }
+            Some(snapshot) => {
+                debug!("using runtime snapshot");
+                JsRuntime::new(deno_core::RuntimeOptions {
+                    is_main: true,
+                    extensions: extensions(true),
+                    module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
+                    startup_snapshot: Some(snapshot),
+                    ..Default::default()
+                })
+            }
+        };
 
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
+        // Bootstrap
+        {
+            let script = format!("globalThis.bootstrap('{}')", USER_AGENT);
 
-    let future = async move {
-        let mod_id = js_runtime.load_main_module(&main_module, None).await?;
-        let result = js_runtime.mod_evaluate(mod_id);
-
-        if !task_type.is_none() {
             js_runtime
                 .execute_script(
                     deno_core::located_script_name!(),
-                    deno_core::ModuleCodeString::from(match task_type {
-                        TaskType::Fetch => format!("globalThis.triggerFetchEvent()"),
-                        TaskType::Scheduled => {
-                            format!("globalThis.triggerScheduledEvent(Date.now())")
-                        }
-                        TaskType::None => unreachable!(),
-                    }),
+                    deno_core::ModuleCodeString::from(script),
                 )
                 .unwrap();
         }
 
-        let opts = deno_core::PollEventLoopOptions {
-            wait_for_inspector: false,
-            pump_v8_message_loop: true,
+        Self {
+            js_runtime,
+            main_module,
+            shutdown_tx
+        }
+    }
+
+    pub fn exec(mut self, mut task: Task) {
+        let future = async move {
+            task.init(&mut self.js_runtime);
+
+            let mod_id = self
+                .js_runtime
+                .load_main_module(&self.main_module, None)
+                .await?;
+
+            let result = self.js_runtime.mod_evaluate(mod_id);
+
+            task.trigger(&mut self.js_runtime);
+
+            let opts = deno_core::PollEventLoopOptions {
+                wait_for_inspector: false,
+                pump_v8_message_loop: true,
+            };
+
+            self.js_runtime.run_event_loop(opts).await?;
+
+            result.await
         };
 
-        js_runtime.run_event_loop(opts).await?;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
 
-        result.await
-    };
-
-    let local = tokio::task::LocalSet::new();
-    match local.block_on(&runtime, future) {
-        Ok(_) => {
-            debug!("worker thread finished");
-            shutdown_tx
-                .send(None)
-                .expect("failed to send shutdown signal");
-        }
-        Err(err) => {
-            error!("worker thread failed {:?}", err);
-            shutdown_tx
-                .send(Some(err))
-                .expect("failed to send shutdown signal");
+        let local = tokio::task::LocalSet::new();
+        match local.block_on(&runtime, future) {
+            Ok(_) => {
+                log::debug!("worker thread finished");
+                self.shutdown_tx
+                    .send(None)
+                    .expect("failed to send shutdown signal");
+            }
+            Err(err) => {
+                log::error!("worker thread failed {:?}", err);
+                self.shutdown_tx
+                    .send(Some(err))
+                    .expect("failed to send shutdown signal");
+            }
         }
     }
 }
