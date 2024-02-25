@@ -10,6 +10,7 @@ use std::rc::Rc;
 
 use deno_core::error::AnyError;
 
+use deno_core::url::Url;
 use deno_core::Snapshot;
 use tokio::sync::oneshot;
 
@@ -17,10 +18,24 @@ use log::{debug, error};
 
 const USER_AGENT: &str = "OpenWorkers/0.1.0";
 
-static RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/RUNTIME_SNAPSHOT.bin"));
+static RUNTIME_SNAPSHOT: &[u8] =
+    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/RUNTIME_SNAPSHOT.bin"));
 
-pub (crate) fn extensions() -> Vec<deno_core::Extension> {
-    vec![
+pub fn module_url(path_str: &str) -> Url {
+    let current_dir = std::env::current_dir().unwrap();
+    let current_dir = current_dir.as_path();
+    deno_core::resolve_path(path_str, current_dir).unwrap()
+}
+
+pub(crate) fn runtime_snapshot() -> Option<Snapshot> {
+    match RUNTIME_SNAPSHOT.len() {
+        0 => None,
+        _ => Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
+    }
+}
+
+pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
+    let mut exts = vec![
         deno_webidl::deno_webidl::init_ops_and_esm(),
         deno_console::deno_console::init_ops_and_esm(),
         deno_url::deno_url::init_ops_and_esm(),
@@ -33,55 +48,46 @@ pub (crate) fn extensions() -> Vec<deno_core::Extension> {
             user_agent: USER_AGENT.to_string(),
             ..Default::default()
         }),
-
         // OpenWorkers extensions
         fetch_event_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
         permissions_ext::init_ops(),
-    ]
+    ];
+
+    if !for_snapshot {
+        return exts;
+    }
+
+    for ext in &mut exts {
+        ext.js_files = std::borrow::Cow::Borrowed(&[]);
+        ext.esm_files = std::borrow::Cow::Borrowed(&[]);
+        ext.esm_entry_point = None;
+    }
+
+    exts
 }
 
-pub fn run_js(path_str: &str, task: Task, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
-    let current_dir = std::env::current_dir().unwrap();
-    let current_dir = current_dir.as_path();
-    let main_module = deno_core::resolve_path(path_str, current_dir).unwrap();
-
-    let snapshot = match RUNTIME_SNAPSHOT.len() {
-        0 => None,
-        _ => Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
-    };
-
-    let mut js_runtime = match snapshot {
+pub fn run_js(main_module: Url, task: Task, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
+    let mut js_runtime = match runtime_snapshot() {
         None => {
+            debug!("no runtime snapshot");
             deno_core::JsRuntime::new(deno_core::RuntimeOptions {
                 is_main: true,
-                extensions: extensions(),
+                extensions: extensions(false),
                 module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
                 startup_snapshot: None,
                 ..Default::default()
             })
         }
         Some(snapshot) => {
-            deno_core::JsRuntime::new(
-                deno_core::RuntimeOptions {
-                    is_main: true,
-                    extensions: {
-                        let mut exts = extensions();
-                        
-                        for ext in &mut exts {
-                            ext.js_files = std::borrow::Cow::Borrowed(&[]);
-                            ext.esm_files = std::borrow::Cow::Borrowed(&[]);
-                            ext.esm_entry_point = None;
-                        }
-
-                        exts
-                    },
-                    // module_loader: None,
-                    module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-                    startup_snapshot: Some(snapshot),
-                    ..Default::default()
-                }
-            )
+            debug!("using runtime snapshot");
+            deno_core::JsRuntime::new(deno_core::RuntimeOptions {
+                is_main: true,
+                extensions: extensions(true),
+                module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
+                startup_snapshot: Some(snapshot),
+                ..Default::default()
+            })
         }
     };
 
@@ -129,7 +135,9 @@ pub fn run_js(path_str: &str, task: Task, shutdown_tx: oneshot::Sender<Option<An
                     deno_core::located_script_name!(),
                     deno_core::ModuleCodeString::from(match task_type {
                         TaskType::Fetch => format!("globalThis.triggerFetchEvent()"),
-                        TaskType::Scheduled => format!("globalThis.triggerScheduledEvent(Date.now())"),
+                        TaskType::Scheduled => {
+                            format!("globalThis.triggerScheduledEvent(Date.now())")
+                        }
                         TaskType::None => unreachable!(),
                     }),
                 )

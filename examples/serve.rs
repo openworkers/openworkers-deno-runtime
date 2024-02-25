@@ -6,14 +6,11 @@ use openworkers_runtime::run_js;
 use openworkers_runtime::AnyError;
 use openworkers_runtime::FetchInit;
 use openworkers_runtime::Task;
-use openworkers_runtime::Snapshot;
+use openworkers_runtime::Url;
 
 use tokio::sync::oneshot;
 
 use actix_web::{App, HttpServer};
-
-use std::sync::Arc;
-use std::sync::Mutex;
 
 use actix_web::web;
 use actix_web::web::Data;
@@ -21,8 +18,7 @@ use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 
 struct AppState {
-    path: String,
-    snapshot: Option<Arc<Mutex<Snapshot>>>,
+    url: Url
 }
 
 async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse {
@@ -30,7 +26,8 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
 
     let start = tokio::time::Instant::now();
 
-    let file_path = data.path.clone();
+    let url = data.url.clone();
+    let url_clone = url.clone();
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
     let (response_tx, response_rx) = oneshot::channel::<http_v02::Response<Bytes>>();
@@ -39,8 +36,6 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     // let snapshot = Snapshot::Boxed(snapshot.bytes().take());
 
     let _res = {
-        let file_path = file_path.clone();
-
         let task = Task::Fetch(FetchInit {
             req: http_v02::Request::builder()
                 .uri(req.uri())
@@ -49,20 +44,24 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
             res_tx: Some(response_tx),
         });
 
-        std::thread::spawn(move || run_js(file_path.as_str(), task, shutdown_tx))
+        std::thread::spawn(move || {
+            run_js(url, task, shutdown_tx)
+        })
     };
 
-    debug!("js worker for {:?} started", file_path);
+    let url = url_clone.clone();
+
+    debug!("js worker for {:?} started", url);
 
     // wait for shutdown signal
     match shutdown_rx.await {
-        Ok(None) => debug!("js worker for {:?} stopped", file_path),
+        Ok(None) => debug!("js worker for {:?} stopped", url),
         Ok(Some(err)) => {
-            error!("js worker for {:?} error: {}", file_path, err);
+            error!("js worker for {:?} error: {}", url, err);
             return HttpResponse::InternalServerError().body(err.to_string());
         }
         Err(err) => {
-            error!("js worker for {:?} error: {}", file_path, err);
+            error!("js worker for {:?} error: {}", url, err);
             return HttpResponse::InternalServerError().body(err.to_string());
         }
     }
@@ -122,7 +121,11 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
-            .app_data(Data::new(AppState { path: get_path(), snapshot: None }))
+            .app_data(Data::new({
+                let path = get_path();
+                let url = openworkers_runtime::module_url(path.as_str());
+                AppState { url }
+            }))
             .default_service(web::to(handle_request))
     })
     .bind(("127.0.0.1", 8080))?

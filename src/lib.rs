@@ -1,13 +1,15 @@
 mod ext;
 mod runtime;
-mod snapshot;
 mod task;
+pub mod snapshot;
 
-pub use snapshot::create_runtime_snapshot;
+pub (crate) use runtime::extensions;
+
 pub use runtime::run_js;
 pub use ext::FetchInit;
 pub use deno_core::error::AnyError;
 pub use task::Task;
 pub use task::TaskType;
 pub use deno_core::Snapshot;
-pub (crate) use runtime::extensions;
+pub use deno_core::url::Url;
+pub use runtime::module_url;

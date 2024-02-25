@@ -1,9 +1,16 @@
 use log::debug;
 use log::error;
+use openworkers_runtime::module_url;
 use openworkers_runtime::run_js;
 use openworkers_runtime::AnyError;
 use openworkers_runtime::Task;
 use tokio::sync::oneshot;
+
+fn get_path() -> String {
+    std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| String::from("examples/scheduled.js"))
+}
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
@@ -15,14 +22,22 @@ async fn main() -> Result<(), ()> {
 
     debug!("start main");
 
-    let file_path = String::from("examples/scheduled.js");
+    // Check that the path is correct
+    let file_path = {
+        let path = get_path();
+        if !std::path::Path::new(&path).is_file() {
+            eprintln!("file not found: {}", path);
+            std::process::exit(1);
+        }
+        path
+    };
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
 
     let _res = {
-        let file_path = file_path.clone();
+        let url = module_url(file_path.as_str());
 
-        std::thread::spawn(move || run_js(file_path.as_str(), Task::Scheduled, shutdown_tx))
+        std::thread::spawn(move || run_js(url, Task::Scheduled, shutdown_tx))
     };
 
     debug!("js worker for {:?} started", file_path);
