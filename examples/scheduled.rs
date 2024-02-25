@@ -2,6 +2,7 @@ use log::debug;
 use log::error;
 use openworkers_runtime::module_url;
 use openworkers_runtime::AnyError;
+use openworkers_runtime::ScheduledInit;
 use openworkers_runtime::Task;
 use openworkers_runtime::Worker;
 use tokio::sync::oneshot;
@@ -33,18 +34,30 @@ async fn main() -> Result<(), ()> {
     };
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
+    let (done_tx, done_rx) = oneshot::channel::<()>();
 
     let url = module_url(file_path.as_str());
 
-    std::thread::spawn(move || Worker::new(url, shutdown_tx).exec(Task::Scheduled));
+    let time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs();
+
+    std::thread::spawn(move || Worker::new(url, shutdown_tx).exec(Task::Scheduled(Some(ScheduledInit::new(done_tx, time)))));
 
     debug!("js worker for {:?} started", file_path);
 
+    // wait for completion signal
+    match done_rx.await {
+        Ok(()) => debug!("js task for {file_path} completed"),
+        Err(err) => error!("js task for {file_path} did not complete: {err}"),
+    }
+
     // wait for shutdown signal
     match shutdown_rx.await {
-        Ok(None) => debug!("js worker for {:?} stopped", file_path),
-        Ok(Some(err)) => error!("js worker for {:?} error: {}", file_path, err),
-        Err(err) => error!("js worker for {:?} error: {}", file_path, err),
+        Ok(None) => debug!("js worker for {file_path} stopped"),
+        Ok(Some(err)) => error!("js worker for {file_path} error: {err}"),
+        Err(err) => error!("js worker for {file_path} error: {err}"),
     }
 
     Ok(())

@@ -4,20 +4,12 @@ use deno_core::v8::Value;
 use deno_core::JsRuntime;
 
 use crate::FetchInit;
+use crate::ScheduledInit;
 
 pub enum TaskType {
     Fetch,
     Scheduled,
-    None,
-}
-
-impl TaskType {
-    pub fn is_none(&self) -> bool {
-        match self {
-            TaskType::None => true,
-            _ => false,
-        }
-    }
+    Noop,
 }
 
 pub trait TaskTrigger {
@@ -32,16 +24,16 @@ pub trait TaskInit {
 
 pub enum Task {
     Fetch(Option<FetchInit>),
-    Scheduled,
-    None,
+    Scheduled(Option<ScheduledInit>),
+    Noop(Option<tokio::sync::oneshot::Sender<()>>),
 }
 
 impl Task {
     pub fn task_type(&self) -> TaskType {
         match self {
             Task::Fetch(_) => TaskType::Fetch,
-            Task::Scheduled => TaskType::Scheduled,
-            Task::None => TaskType::None,
+            Task::Scheduled(_) => TaskType::Scheduled,
+            Task::Noop(_) => TaskType::Noop,
         }
     }
 
@@ -50,13 +42,14 @@ impl Task {
             Task::Fetch(data) => {
                 let op_state_rc = js_runtime.op_state();
                 let mut op_state = op_state_rc.borrow_mut();
-
-                let fetch_init = data.take().unwrap();
-
-                op_state.put(fetch_init);
+                op_state.put(data.take().unwrap());
             }
-            Task::Scheduled => {}
-            Task::None => {}
+            Task::Scheduled(data) => {
+                let op_state_rc = js_runtime.op_state();
+                let mut op_state = op_state_rc.borrow_mut();
+                op_state.put(data.take().unwrap());
+            }
+            Task::Noop(_) => {}
         }
     }
 
@@ -66,11 +59,11 @@ impl Task {
                 deno_core::located_script_name!(),
                 deno_core::ModuleCodeString::from(format!("globalThis.triggerFetchEvent()")),
             )),
-            Task::Scheduled => Some(js_runtime.execute_script(
+            Task::Scheduled(_) => Some(js_runtime.execute_script(
                 deno_core::located_script_name!(),
                 deno_core::ModuleCodeString::from(format!("globalThis.triggerScheduledEvent()")),
             )),
-            Task::None => None,
+            Task::Noop(_) => None,
         }
     }
 }

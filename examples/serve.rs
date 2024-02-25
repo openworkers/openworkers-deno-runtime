@@ -32,15 +32,12 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
     let (response_tx, response_rx) = oneshot::channel::<http_v02::Response<Bytes>>();
 
-    let task = Task::Fetch(Some(FetchInit {
-        res_tx: Some(response_tx),
-        req: http_v02::Request::builder()
-            .uri(req.uri())
-            .body(Default::default())
-            .unwrap(),
-    }));
+    let req = http_v02::Request::builder()
+        .uri(req.uri())
+        .body(Default::default())
+        .unwrap();
 
-    Worker::new(url, shutdown_tx).exec(task);
+    std::thread::spawn(move || Worker::new(url, shutdown_tx).exec(Task::Fetch(Some(FetchInit::new(req, response_tx)))));
 
     let url = url_clone.clone();
 
@@ -48,13 +45,13 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
 
     // wait for shutdown signal
     match shutdown_rx.await {
-        Ok(None) => debug!("js worker for {:?} stopped", url),
+        Ok(None) => debug!("js worker for {:?} stopped", url.path()),
         Ok(Some(err)) => {
-            error!("js worker for {:?} error: {}", url, err);
+            error!("js worker for {:?} error: {}", url.path(), err);
             return HttpResponse::InternalServerError().body(err.to_string());
         }
         Err(err) => {
-            error!("js worker for {:?} error: {}", url, err);
+            error!("js worker for {:?} error: {}", url.path(), err);
             return HttpResponse::InternalServerError().body(err.to_string());
         }
     }

@@ -5,6 +5,8 @@ use deno_core::error::AnyError;
 use deno_core::op2;
 use deno_core::serde::Deserialize;
 use deno_core::serde::Serialize;
+use deno_core::Extension;
+use deno_core::ExtensionFileSource;
 use deno_core::OpState;
 use deno_core::ResourceId;
 use log::debug;
@@ -14,7 +16,7 @@ type HttpResponse = http_v02::Response<Bytes>;
 type ResponseSender = tokio::sync::oneshot::Sender<HttpResponse>;
 
 #[derive(Debug)]
-struct HttpResponseTx {
+struct FetchTx {
     tx: ResponseSender,
 }
 
@@ -34,7 +36,6 @@ impl Into<HttpResponse> for FetchResponse {
     fn into(self) -> HttpResponse {
         let mut builder = http_v02::Response::builder().status(self.status);
 
-
         for (k, v) in self.headers {
             builder = builder.header(k, v);
         }
@@ -46,13 +47,13 @@ impl Into<HttpResponse> for FetchResponse {
     }
 }
 
-impl From<ResponseSender> for HttpResponseTx {
+impl From<ResponseSender> for FetchTx {
     fn from(tx: ResponseSender) -> Self {
-        HttpResponseTx { tx }
+        FetchTx { tx }
     }
 }
 
-impl HttpResponseTx {
+impl FetchTx {
     pub fn send(self, res: FetchResponse) -> Result<(), HttpResponse> {
         self.tx.send(res.into())
     }
@@ -60,8 +61,17 @@ impl HttpResponseTx {
 
 #[derive(Debug)]
 pub struct FetchInit {
-    pub req: HttpRequest,
-    pub res_tx: Option<ResponseSender>
+    pub(crate) req: HttpRequest,
+    pub(crate) res_tx: Option<ResponseSender>,
+}
+
+impl FetchInit {
+    pub fn new(req: HttpRequest, res_tx: ResponseSender) -> Self {
+        FetchInit {
+            req,
+            res_tx: Some(res_tx),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -97,17 +107,18 @@ deno_core::extension!(
     fetch_event,
     deps = [deno_console, deno_fetch],
     ops = [op_fetch_init, op_fetch_respond],
+    customizer = |ext: &mut Extension| {
+        ext.esm_files.to_mut().push(ExtensionFileSource::new(
+            "ext:event_fetch.js",
+            include_str!("event_fetch.js"),
+        ));
+        ext.esm_entry_point = Some("ext:event_fetch.js");
+    }
 );
 
-impl deno_core::Resource for FetchInit {
+impl deno_core::Resource for FetchTx {
     fn close(self: Rc<Self>) {
-        println!("TcpStreamResource.close()");
-    }
-}
-
-impl deno_core::Resource for HttpResponseTx {
-    fn close(self: Rc<Self>) {
-        println!("TcpStreamResource.close()"); // TODO
+        println!("TODO Resource.close impl for FetchTx"); // TODO
     }
 }
 
@@ -120,9 +131,9 @@ fn op_fetch_init(state: &mut OpState) -> Result<FetchEvent, AnyError> {
 
     let req = InnerRequest::from(evt.req);
 
-    let res = HttpResponseTx::from(evt.res_tx.take().unwrap());
+    let res = FetchTx::from(evt.res_tx.take().unwrap());
 
-    let rid = state.resource_table.add::<HttpResponseTx>(res);
+    let rid = state.resource_table.add::<FetchTx>(res);
 
     Ok(FetchEvent { req, rid })
 }
@@ -136,7 +147,7 @@ fn op_fetch_respond(
 ) -> Result<(), AnyError> {
     debug!("op_fetch_respond with status {}", res.status);
 
-    let tx = match state.resource_table.take::<HttpResponseTx>(rid) {
+    let tx = match state.resource_table.take::<FetchTx>(rid) {
         Ok(tx) => tx,
         Err(err) => return Err(err),
     };

@@ -2,7 +2,8 @@
 
 // deno_core
 import { core, primordials } from "ext:core/mod.js";
-import { op_fetch_init, op_fetch_respond } from "ext:core/ops";
+import * as fetchEvent from "ext:event_fetch.js";
+import * as scheduledEvent from "ext:event_scheduled.js";
 
 // deno_webidl
 import * as webidl from "ext:deno_webidl/00_webidl.js";
@@ -142,87 +143,21 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     }
   }
 
-  let fetchEventListener;
-  let scheduledEventListener;
-
   function addEventListener(type, listener) {
     if (typeof type !== "string") {
       throw new TypeError("Type must be a string");
     }
 
-    if (typeof listener !== "function") {
-      throw new TypeError("Listener must be a function");
-    }
-
     switch (type) {
       case "fetch":
-        fetchEventListener = listener;
+        fetchEvent.registerFetchEventListener(listener);
         break;
       case "scheduled":
-        scheduledEventListener = listener;
+        scheduledEvent.registerScheduledEventListener(listener);
         break;
       default:
         throw new Error(`Unsupported event type: ${type}`);
     }
-  }
-
-  function triggerScheduledEvent(scheduledTime) {
-    if (!scheduledEventListener) {
-      throw new Error("No scheduled event listener registered");
-    }
-
-    scheduledEventListener({
-      scheduledTime,
-      waitUntil: () => {
-        // TODO: it works for now because we are waiting for
-        // the worker to terminate but we should return a promise
-        // and look for this promise to be resolved
-      },
-    });
-  }
-
-  function triggerFetchEvent() {
-    if (!fetchEventListener) {
-      throw new Error("No fetch event listener registered");
-    }
-
-    const evt = op_fetch_init();
-
-    const rid = evt.rid;
-
-    const signal = abortSignal.newSignal();
-
-    const inner = request.newInnerRequest(
-      evt.req.method,
-      evt.req.url,
-      () => evt.req.headers,
-      evt.req.body
-    );
-
-    const guard = headers.guardFromHeaders(
-      headers.headersFromHeaderList(inner.headerList)
-    );
-
-    const req = request.fromInnerRequest(inner, signal, guard);
-
-    fetchEventListener({
-      request: req,
-      respondWith: async (resOrPromise) => {
-        let res = core.isPromise(resOrPromise)
-          ? await resOrPromise
-          : resOrPromise;
-
-        if (!(res instanceof response.Response)) {
-          throw new TypeError("Response must be a Response object");
-        }
-
-        const inner = response.toInnerResponse(res);
-
-        const body = await res.arrayBuffer();
-
-        op_fetch_respond(rid, { ...inner, body });
-      },
-    });
   }
 
   function globalThisDispatchEvent(event) {
@@ -362,8 +297,8 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     EventSource: nonEnumerable(eventSource.EventSource),
 
     // Events
-    triggerScheduledEvent: nonEnumerable(triggerScheduledEvent),
-    triggerFetchEvent: nonEnumerable(triggerFetchEvent),
+    triggerScheduledEvent: nonEnumerable(scheduledEvent.triggerScheduledEvent),
+    triggerFetchEvent: nonEnumerable(fetchEvent.triggerFetchEvent),
     addEventListener: nonEnumerable(addEventListener),
 
     // Branding as a WebIDL object

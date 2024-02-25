@@ -1,6 +1,7 @@
 use crate::ext::fetch_event_ext;
 use crate::ext::permissions_ext;
 use crate::ext::runtime_ext;
+use crate::ext::scheduled_event_ext;
 
 use crate::ext::Permissions;
 use crate::Task;
@@ -50,6 +51,7 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
         }),
         // OpenWorkers extensions
         fetch_event_ext::init_ops_and_esm(),
+        scheduled_event_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
         permissions_ext::init_ops(),
     ];
@@ -102,18 +104,19 @@ impl Worker {
         {
             let script = format!("globalThis.bootstrap('{}')", USER_AGENT);
 
-            js_runtime
-                .execute_script(
-                    deno_core::located_script_name!(),
-                    deno_core::ModuleCodeString::from(script),
-                )
-                .unwrap();
+            match js_runtime.execute_script(
+                deno_core::located_script_name!(),
+                deno_core::ModuleCodeString::from(script),
+            ) {
+                Ok(_) => debug!("bootstrap succeeded"),
+                Err(err) => panic!("bootstrap failed: {:?}", err)
+            }
         }
 
         Self {
             js_runtime,
             main_module,
-            shutdown_tx
+            shutdown_tx,
         }
     }
 
@@ -128,7 +131,7 @@ impl Worker {
 
             let result = self.js_runtime.mod_evaluate(mod_id);
 
-            task.trigger(&mut self.js_runtime);
+            task.trigger(&mut self.js_runtime).expect("failed to trigger task")?;
 
             let opts = deno_core::PollEventLoopOptions {
                 wait_for_inspector: false,
