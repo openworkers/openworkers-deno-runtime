@@ -94,7 +94,7 @@ impl From<HttpRequest> for InnerRequest {
 }
 
 deno_core::extension!(
-    fetch_init,
+    fetch_event,
     deps = [deno_console, deno_fetch],
     ops = [op_fetch_init, op_fetch_respond],
 );

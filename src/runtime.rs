@@ -1,7 +1,7 @@
-use crate::ext::fetch_init_ext;
+use crate::ext::fetch_event_ext;
+use crate::ext::permissions_ext;
 use crate::ext::runtime_ext;
 
-use crate::ext::permissions_ext;
 use crate::ext::Permissions;
 use crate::task::TaskType;
 use crate::Task;
@@ -10,18 +10,17 @@ use std::rc::Rc;
 
 use deno_core::error::AnyError;
 
+use deno_core::Snapshot;
 use tokio::sync::oneshot;
 
 use log::{debug, error};
 
-pub fn run_js(path_str: &str, task: Task, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
-    let current_dir = std::env::current_dir().unwrap();
-    let current_dir = current_dir.as_path();
-    let main_module = deno_core::resolve_path(path_str, current_dir).unwrap();
+const USER_AGENT: &str = "OpenWorkers/0.1.0";
 
-    let user_agent = "OpenWorkers/0.1.0";
+static RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/RUNTIME_SNAPSHOT.bin"));
 
-    let extensions = vec![
+pub (crate) fn extensions() -> Vec<deno_core::Extension> {
+    vec![
         deno_webidl::deno_webidl::init_ops_and_esm(),
         deno_console::deno_console::init_ops_and_esm(),
         deno_url::deno_url::init_ops_and_esm(),
@@ -31,25 +30,64 @@ pub fn run_js(path_str: &str, task: Task, shutdown_tx: oneshot::Sender<Option<An
         ),
         deno_crypto::deno_crypto::init_ops_and_esm(None),
         deno_fetch::deno_fetch::init_ops_and_esm::<Permissions>(deno_fetch::Options {
-            user_agent: user_agent.to_string(),
+            user_agent: USER_AGENT.to_string(),
             ..Default::default()
         }),
+
         // OpenWorkers extensions
-        fetch_init_ext::init_ops_and_esm(),
+        fetch_event_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
         permissions_ext::init_ops(),
-    ];
+    ]
+}
 
-    let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
-        is_main: true,
-        extensions,
-        module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-        ..Default::default()
-    });
+pub fn run_js(path_str: &str, task: Task, shutdown_tx: oneshot::Sender<Option<AnyError>>) {
+    let current_dir = std::env::current_dir().unwrap();
+    let current_dir = current_dir.as_path();
+    let main_module = deno_core::resolve_path(path_str, current_dir).unwrap();
+
+    let snapshot = match RUNTIME_SNAPSHOT.len() {
+        0 => None,
+        _ => Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
+    };
+
+    let mut js_runtime = match snapshot {
+        None => {
+            deno_core::JsRuntime::new(deno_core::RuntimeOptions {
+                is_main: true,
+                extensions: extensions(),
+                module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
+                startup_snapshot: None,
+                ..Default::default()
+            })
+        }
+        Some(snapshot) => {
+            deno_core::JsRuntime::new(
+                deno_core::RuntimeOptions {
+                    is_main: true,
+                    extensions: {
+                        let mut exts = extensions();
+                        
+                        for ext in &mut exts {
+                            ext.js_files = std::borrow::Cow::Borrowed(&[]);
+                            ext.esm_files = std::borrow::Cow::Borrowed(&[]);
+                            ext.esm_entry_point = None;
+                        }
+
+                        exts
+                    },
+                    // module_loader: None,
+                    module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
+                    startup_snapshot: Some(snapshot),
+                    ..Default::default()
+                }
+            )
+        }
+    };
 
     // Bootstrap
     {
-        let script = format!("globalThis.bootstrap('{}')", user_agent);
+        let script = format!("globalThis.bootstrap('{}')", USER_AGENT);
 
         js_runtime
             .execute_script(
