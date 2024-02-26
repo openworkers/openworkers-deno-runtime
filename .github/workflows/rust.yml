@@ -13,8 +13,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Cache
+      uses: actions/cache@v3
+      continue-on-error: false
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Snapshot runtime
+      run: cargo run --release --bin snapshot
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --release --verbose --all --examples
     - name: Run tests
       run: cargo test --verbose

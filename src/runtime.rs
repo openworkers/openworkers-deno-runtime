@@ -17,12 +17,16 @@ use deno_core::Snapshot;
 
 use log::debug;
 
-const USER_AGENT: &str = "OpenWorkers/0.1.0";
+const USER_AGENT: &str = concat!("OpenWorkers/", env!("CARGO_PKG_VERSION"));
 
 static RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/target/RUNTIME_SNAPSHOT.bin"
 ));
+
+pub (crate) fn user_agent() -> String {
+    USER_AGENT.to_string()
+}
 
 pub fn module_url(path_str: &str) -> Url {
     let current_dir = std::env::current_dir().unwrap();
@@ -48,7 +52,7 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
         ),
         deno_crypto::deno_crypto::init_ops_and_esm(None),
         deno_fetch::deno_fetch::init_ops_and_esm::<Permissions>(deno_fetch::Options {
-            user_agent: USER_AGENT.to_string(),
+            user_agent: user_agent(),
             ..Default::default()
         }),
         // OpenWorkers extensions
@@ -109,7 +113,7 @@ impl Worker {
 
         // Bootstrap
         {
-            let script = format!("globalThis.bootstrap('{}')", USER_AGENT);
+            let script = format!("globalThis.bootstrap('{}')", user_agent());
             let script = deno_core::ModuleCodeString::from(script);
 
             match js_runtime.execute_script(deno_core::located_script_name!(), script) {
