@@ -22,14 +22,12 @@ function registerFetchEventListener(listener) {
   fetchEventListener = listener;
 }
 
-function triggerFetchEvent() {
+function triggerFetchEvent(rid) {
   if (!fetchEventListener) {
     throw new Error("No fetch event listener registered");
   }
 
-  const evt = op_fetch_init();
-
-  const rid = evt.rid;
+  const evt = op_fetch_init(rid);
 
   const signal = newSignal();
 
@@ -57,7 +55,7 @@ function triggerFetchEvent() {
 
       const body = await response.arrayBuffer();
 
-      op_fetch_respond(rid, { ...inner, body });
+      op_fetch_respond(evt.rid, { ...inner, body });
     },
   });
 }

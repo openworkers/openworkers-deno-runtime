@@ -1,7 +1,6 @@
 use log::debug;
 use log::error;
 use openworkers_runtime::module_url;
-use openworkers_runtime::AnyError;
 use openworkers_runtime::ScheduledInit;
 use openworkers_runtime::Task;
 use openworkers_runtime::Worker;
@@ -33,8 +32,8 @@ async fn main() -> Result<(), ()> {
         path
     };
 
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<Option<AnyError>>();
-    let (done_tx, done_rx) = oneshot::channel::<()>();
+    let (res_tx, res_rx) = oneshot::channel::<()>();
+    let (end_tx, end_rx) =  oneshot::channel::<()>();
 
     let url = module_url(file_path.as_str());
 
@@ -43,24 +42,46 @@ async fn main() -> Result<(), ()> {
         .expect("Time went backwards")
         .as_secs();
 
-    std::thread::spawn(move || Worker::new(url, shutdown_tx).exec(Task::Scheduled(Some(ScheduledInit::new(done_tx, time)))));
+    let handle = std::thread::spawn(move || {
+        let local = tokio::task::LocalSet::new();
 
-    debug!("js worker for {:?} started", file_path);
+        local.spawn_local(async move {
+            let mut worker = Worker::new(url).await.unwrap();
+
+            match worker
+                .exec(Task::Scheduled(Some(ScheduledInit::new(res_tx, time))))
+                .await
+            {
+                Ok(()) => debug!("exec completed"),
+                Err(err) => error!("exec did not complete: {err}"),
+            }
+        });
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        match local.block_on(&rt, async { end_rx.await }) {
+            Ok(()) => {},
+            Err(err) => error!("failed to wait for end: {err}"),
+        }
+    });
+
+    debug!("worker started");
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => debug!("ctrl-c received"),
-        // wait for completion signal
-        done = done_rx => match done {
-            Ok(()) => debug!("js task for {file_path} completed"),
-            Err(err) => error!("js task for {file_path} did not complete: {err}"),
-        },
-        // wait for shutdown signal
-        end = shutdown_rx => match end {
-            Ok(None) => error!("js worker for {file_path} stopped before replying"),
-            Ok(Some(err)) => error!("js worker for {file_path} error: {err}"),
-            Err(err) => error!("js worker for {file_path} error: {err}"),
+        // wait for task completion signal
+        done = res_rx => match done {
+            Ok(()) => debug!("task completed"),
+            Err(err) => error!("task did not complete: {err}"),
         }
     }
+
+    end_tx.send(()).unwrap();
+
+    handle.join().unwrap();
 
     Ok(())
 }

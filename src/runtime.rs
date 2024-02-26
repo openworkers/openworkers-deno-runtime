@@ -13,14 +13,15 @@ use deno_core::JsRuntime;
 
 use deno_core::url::Url;
 use deno_core::Snapshot;
-use tokio::sync::oneshot;
 
 use log::debug;
 
 const USER_AGENT: &str = "OpenWorkers/0.1.0";
 
-static RUNTIME_SNAPSHOT: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/target/RUNTIME_SNAPSHOT.bin"));
+static RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/target/RUNTIME_SNAPSHOT.bin"
+));
 
 pub fn module_url(path_str: &str) -> Url {
     let current_dir = std::env::current_dir().unwrap();
@@ -70,13 +71,11 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
 }
 
 pub struct Worker {
-    main_module: Url,
     js_runtime: deno_core::JsRuntime,
-    shutdown_tx: oneshot::Sender<Option<AnyError>>,
 }
 
 impl Worker {
-    pub fn new(main_module: Url, shutdown_tx: oneshot::Sender<Option<AnyError>>) -> Self {
+    pub async fn new(main_module: Url) -> Result<Self, AnyError> {
         let mut js_runtime = match runtime_snapshot() {
             None => {
                 debug!("no runtime snapshot");
@@ -100,6 +99,8 @@ impl Worker {
             }
         };
 
+        debug!("runtime created, bootstrapping...");
+
         // Bootstrap
         {
             let script = format!("globalThis.bootstrap('{}')", USER_AGENT);
@@ -109,59 +110,44 @@ impl Worker {
                 deno_core::ModuleCodeString::from(script),
             ) {
                 Ok(_) => debug!("bootstrap succeeded"),
-                Err(err) => panic!("bootstrap failed: {:?}", err)
+                Err(err) => panic!("bootstrap failed: {:?}", err),
             }
         }
 
-        Self {
-            js_runtime,
-            main_module,
-            shutdown_tx,
-        }
-    }
+        debug!("runtime bootstrapped, evaluating main module...");
 
-    pub fn exec(mut self, mut task: Task) {
-        let future = async move {
-            task.init(&mut self.js_runtime);
+        // Eval main module
+        {
+            let mod_id = js_runtime.load_main_module(&main_module, None).await?;
 
-            let mod_id = self
-                .js_runtime
-                .load_main_module(&self.main_module, None)
-                .await?;
-
-            let result = self.js_runtime.mod_evaluate(mod_id);
-
-            task.trigger(&mut self.js_runtime).expect("failed to trigger task")?;
+            let result = js_runtime.mod_evaluate(mod_id);
 
             let opts = deno_core::PollEventLoopOptions {
                 wait_for_inspector: false,
                 pump_v8_message_loop: true,
             };
 
-            self.js_runtime.run_event_loop(opts).await?;
+            js_runtime.run_event_loop(opts).await?;
 
-            result.await
+            result.await?;
         };
 
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
+        debug!("main module evaluated");
 
-        let local = tokio::task::LocalSet::new();
-        match local.block_on(&runtime, future) {
-            Ok(()) => {
-                log::debug!("worker thread finished");
-                self.shutdown_tx
-                    .send(None)
-                    .unwrap_or_else(|err| log::warn!("failed to send shutdown signal (ok) {:?}", err));
-            }
-            Err(err) => {
-                log::error!("worker thread failed {:?}", err);
-                self.shutdown_tx
-                    .send(Some(err))
-                    .unwrap_or_else(|err| log::warn!("failed to send shutdown signal ({:?})", err));
-            }
-        }
+        Ok(Self { js_runtime })
+    }
+
+    pub async fn exec(&mut self, mut task: Task) -> Result<(), AnyError> {
+        debug!("executing task {:?}", task.task_type());
+
+        task.trigger(&mut self.js_runtime)
+            .expect("failed to trigger task")?;
+
+        let opts = deno_core::PollEventLoopOptions {
+            wait_for_inspector: false,
+            pump_v8_message_loop: true,
+        };
+
+        self.js_runtime.run_event_loop(opts).await
     }
 }

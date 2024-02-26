@@ -15,9 +15,11 @@ async function handleSchedule(scheduledDate) {
 
   const res = await fetch("https://echo.workers.rocks/data.json");
 
-  console.log("Done waiting!", res.status, await res.json());
+  let data = await res.json();
+
+  console.log("Done waiting!", res.status, { agent: data["user-agent"] });
 
   return "Called deploy hook!";
 }
 
-setTimeout(() => console.log("Hello from timeout"), 2000);
+setTimeout(() => console.log("Hello from timeout"), 200);

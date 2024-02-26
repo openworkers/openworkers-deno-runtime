@@ -6,6 +6,8 @@ addEventListener("fetch", (event) => {
   );
 });
 
+let n = 0;
+
 async function handleRequest(request) {
   if (request.method !== "GET") {
     return new Response("Method Not Allowed", { status: 405 });
@@ -15,7 +17,7 @@ async function handleRequest(request) {
     return new Response(null, { status: 404 });
   }
 
-  return new Response("Hello world");
+  return new Response(`Hello world! I've been called ${++n} times.`);
 }
 
-setTimeout(() => console.log("Hello from timeout"), 500);
+// setTimeout(() => console.log("Hello from timeout"), 200);

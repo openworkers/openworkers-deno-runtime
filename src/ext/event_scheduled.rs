@@ -13,33 +13,22 @@ type ResponseSender = tokio::sync::oneshot::Sender<()>;
 
 #[derive(Debug)]
 pub struct ScheduledInit {
-    pub(crate) res_tx: Option<ResponseSender>,
+    pub(crate) res_tx: ResponseSender,
     pub(crate) time: u64,
 }
 
 impl ScheduledInit {
     pub fn new(res_tx: ResponseSender, time: u64) -> Self {
         ScheduledInit {
-            res_tx: Some(res_tx),
+            res_tx,
             time,
         }
     }
 }
 
-#[derive(Debug)]
-struct ScheduledTx {
-    tx: ResponseSender,
-}
-
-impl From<ResponseSender> for ScheduledTx {
-    fn from(tx: ResponseSender) -> Self {
-        ScheduledTx { tx }
-    }
-}
-
-impl ScheduledTx {
-    pub fn send(self) -> Result<(), ()> {
-        self.tx.send(())
+impl deno_core::Resource for ScheduledInit {
+    fn close(self: Rc<Self>) {
+        println!("TODO Resource.close impl for ScheduledInit"); // TODO
     }
 }
 
@@ -62,24 +51,14 @@ deno_core::extension!(
     }
 );
 
-impl deno_core::Resource for ScheduledTx {
-    fn close(self: Rc<Self>) {
-        println!("TODO Resource.close impl for ScheduledTx"); // TODO
-    }
-}
-
 #[op2]
 #[serde]
-fn op_scheduled_init(state: &mut OpState) -> Result<ScheduledEvent, AnyError> {
-    debug!("op_scheduled_init");
+fn op_scheduled_init(state: &mut OpState, #[smi] rid: ResourceId) -> Result<ScheduledEvent, AnyError> {
+    debug!("op_scheduled_init {rid}");
 
-    let mut evt = state.take::<ScheduledInit>();
+    let evt = state.resource_table.get::<ScheduledInit>(rid).unwrap();
 
     let time = evt.time;
-
-    let res = ScheduledTx::from(evt.res_tx.take().unwrap());
-
-    let rid = state.resource_table.add::<ScheduledTx>(res);
 
     Ok(ScheduledEvent { rid, time })
 }
@@ -89,8 +68,8 @@ fn op_scheduled_init(state: &mut OpState) -> Result<ScheduledEvent, AnyError> {
 fn op_scheduled_respond(state: &mut OpState, #[smi] rid: ResourceId) -> Result<(), AnyError> {
     debug!("op_scheduled_respond");
 
-    match state.resource_table.take::<ScheduledTx>(rid) {
-        Ok(tx) => Ok(Rc::try_unwrap(tx).unwrap().send().unwrap()),
+    match state.resource_table.take::<ScheduledInit>(rid) {
+        Ok(tx) => Ok(Rc::try_unwrap(tx).unwrap().res_tx.send(()).unwrap()),
         Err(err) => Err(err),
     }
 }

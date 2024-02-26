@@ -15,11 +15,6 @@ type HttpRequest = http_v02::Request<Bytes>;
 type HttpResponse = http_v02::Response<Bytes>;
 type ResponseSender = tokio::sync::oneshot::Sender<HttpResponse>;
 
-#[derive(Debug)]
-struct FetchTx {
-    tx: ResponseSender,
-}
-
 /// FetchResponse is a struct that represents the response
 /// from a fetch request that comes from js realm.
 #[derive(Debug, Deserialize)]
@@ -47,30 +42,39 @@ impl Into<HttpResponse> for FetchResponse {
     }
 }
 
-impl From<ResponseSender> for FetchTx {
-    fn from(tx: ResponseSender) -> Self {
-        FetchTx { tx }
-    }
-}
-
-impl FetchTx {
-    pub fn send(self, res: FetchResponse) -> Result<(), HttpResponse> {
-        self.tx.send(res.into())
-    }
-}
-
 #[derive(Debug)]
 pub struct FetchInit {
     pub(crate) req: HttpRequest,
-    pub(crate) res_tx: Option<ResponseSender>,
+    pub(crate) res_tx: ResponseSender,
 }
 
 impl FetchInit {
     pub fn new(req: HttpRequest, res_tx: ResponseSender) -> Self {
         FetchInit {
             req,
-            res_tx: Some(res_tx),
+            res_tx,
         }
+    }
+}
+
+impl deno_core::Resource for FetchInit {
+    fn close(self: Rc<Self>) {
+        println!("TODO Resource.close impl for FetchInit"); // TODO
+    }
+}
+
+#[derive(Debug)]
+struct FetchTx(ResponseSender);
+
+impl deno_core::Resource for FetchTx {
+    fn close(self: Rc<Self>) {
+        println!("TODO Resource.close impl for FetchTx"); // TODO
+    }
+}
+
+impl FetchTx {
+    pub fn send(self, res: FetchResponse) -> Result<(), HttpResponse> {
+        self.0.send(res.into())
     }
 }
 
@@ -116,24 +120,18 @@ deno_core::extension!(
     }
 );
 
-impl deno_core::Resource for FetchTx {
-    fn close(self: Rc<Self>) {
-        println!("TODO Resource.close impl for FetchTx"); // TODO
-    }
-}
-
 #[op2]
 #[serde]
-fn op_fetch_init(state: &mut OpState) -> Result<FetchEvent, AnyError> {
-    debug!("op_fetch_init");
+fn op_fetch_init(state: &mut OpState, #[smi] rid: ResourceId) -> Result<FetchEvent, AnyError> {
+    debug!("op_fetch_init {rid}");
 
-    let mut evt: FetchInit = state.take::<FetchInit>();
+    let evt = state.resource_table.take::<FetchInit>(rid).unwrap();
+
+    let evt = Rc::try_unwrap(evt).unwrap();
 
     let req = InnerRequest::from(evt.req);
 
-    let res = FetchTx::from(evt.res_tx.take().unwrap());
-
-    let rid = state.resource_table.add::<FetchTx>(res);
+    let rid = state.resource_table.add(FetchTx(evt.res_tx)); 
 
     Ok(FetchEvent { req, rid })
 }

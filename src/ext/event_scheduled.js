@@ -11,14 +11,12 @@ function registerScheduledEventListener(listener) {
   scheduledEventListener = listener;
 }
 
-function triggerScheduledEvent() {
+function triggerScheduledEvent(rid) {
   if (!scheduledEventListener) {
     throw new Error("No scheduled event listener registered");
   }
 
-  const evt = op_scheduled_init();
-
-  const rid = evt.rid;
+  const evt = op_scheduled_init(rid);
 
   // Convert seconds to milliseconds
   const scheduledTime = evt.time * 1000;
@@ -30,7 +28,7 @@ function triggerScheduledEvent() {
         await promise;
       }
 
-      op_scheduled_respond(rid);
+      op_scheduled_respond(evt.rid);
     },
   });
 }
