@@ -20,7 +20,7 @@ use log::debug;
 const USER_AGENT: &str = "OpenWorkers/0.1.0";
 
 static RUNTIME_SNAPSHOT: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/RUNTIME_SNAPSHOT.bin"));
+    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/target/RUNTIME_SNAPSHOT.bin"));
 
 pub fn module_url(path_str: &str) -> Url {
     let current_dir = std::env::current_dir().unwrap();

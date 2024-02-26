@@ -9,7 +9,7 @@ use std::env;
 use std::path::PathBuf;
 use std::fs::File;
 
-const RUNTIME_SNAPSHOT_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/RUNTIME_SNAPSHOT.bin");
+const RUNTIME_SNAPSHOT_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/target/RUNTIME_SNAPSHOT.bin");
 
 pub fn create_runtime_snapshot() {
     println!("Building snapshot");
