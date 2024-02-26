@@ -69,7 +69,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
         }
     };
 
-    debug!("handle_request done {}", start.elapsed().as_millis());
+    debug!("handle_request done in {}ms", start.elapsed().as_millis());
 
     response
 }

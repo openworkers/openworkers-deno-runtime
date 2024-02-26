@@ -297,8 +297,6 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     EventSource: nonEnumerable(eventSource.EventSource),
 
     // Events
-    triggerScheduledEvent: nonEnumerable(scheduledEvent.triggerScheduledEvent),
-    triggerFetchEvent: nonEnumerable(fetchEvent.triggerFetchEvent),
     addEventListener: nonEnumerable(addEventListener),
 
     // Branding as a WebIDL object
@@ -415,5 +413,11 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     core.setReportExceptionCallback(event.reportException);
 
     // core.setWasmStreamingCallback(fetch.handleWasmStreaming);
+
+    // Return event trigger functions to be used by the host
+    return {
+      scheduled: scheduledEvent.triggerScheduledEvent,
+      fetch: fetchEvent.triggerFetchEvent,
+    };
   };
 }

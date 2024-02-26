@@ -12,6 +12,7 @@ use deno_core::error::AnyError;
 use deno_core::JsRuntime;
 
 use deno_core::url::Url;
+use deno_core::v8;
 use deno_core::Snapshot;
 
 use log::debug;
@@ -71,7 +72,9 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
 }
 
 pub struct Worker {
-    js_runtime: deno_core::JsRuntime,
+    pub(crate) js_runtime: deno_core::JsRuntime,
+    pub(crate) trigger_fetch: deno_core::v8::Global<deno_core::v8::Function>,
+    pub(crate) trigger_scheduled: deno_core::v8::Global<deno_core::v8::Function>,
 }
 
 impl Worker {
@@ -101,18 +104,33 @@ impl Worker {
 
         debug!("runtime created, bootstrapping...");
 
+        let trigger_fetch;
+        let trigger_scheduled;
+
         // Bootstrap
         {
             let script = format!("globalThis.bootstrap('{}')", USER_AGENT);
+            let script = deno_core::ModuleCodeString::from(script);
 
-            match js_runtime.execute_script(
-                deno_core::located_script_name!(),
-                deno_core::ModuleCodeString::from(script),
-            ) {
-                Ok(_) => debug!("bootstrap succeeded"),
+            match js_runtime.execute_script(deno_core::located_script_name!(), script) {
+                Ok(triggers) => {
+                    let scope = &mut js_runtime.handle_scope();
+
+                    let triggers = v8::Local::new(scope, triggers);
+
+                    debug!("bootstrap succeeded with triggers: {:?}", triggers);
+
+                    let object: v8::Local<v8::Object> = match triggers.try_into() {
+                        Ok(object) => object,
+                        Err(err) => panic!("failed to convert triggers to object: {:?}", err),
+                    };
+
+                    trigger_fetch = crate::util::extract_trigger("fetch", scope, object).expect("fetch trigger not found");
+                    trigger_scheduled = crate::util::extract_trigger("scheduled", scope, object).expect("scheduled trigger not found");
+                }
                 Err(err) => panic!("bootstrap failed: {:?}", err),
             }
-        }
+        };
 
         debug!("runtime bootstrapped, evaluating main module...");
 
@@ -134,14 +152,17 @@ impl Worker {
 
         debug!("main module evaluated");
 
-        Ok(Self { js_runtime })
+        Ok(Self {
+            js_runtime,
+            trigger_fetch,
+            trigger_scheduled,
+        })
     }
 
     pub async fn exec(&mut self, mut task: Task) -> Result<(), AnyError> {
         debug!("executing task {:?}", task.task_type());
 
-        task.trigger(&mut self.js_runtime)
-            .expect("failed to trigger task")?;
+        crate::util::exec_task(self, &mut task);
 
         let opts = deno_core::PollEventLoopOptions {
             wait_for_inspector: false,

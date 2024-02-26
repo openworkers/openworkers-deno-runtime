@@ -3,6 +3,8 @@ mod runtime;
 mod task;
 pub mod snapshot;
 
+pub (crate) mod util;
+
 pub (crate) use runtime::extensions;
 
 pub use runtime::Worker;
