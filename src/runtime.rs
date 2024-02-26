@@ -19,7 +19,7 @@ use log::debug;
 
 const USER_AGENT: &str = concat!("OpenWorkers/", env!("CARGO_PKG_VERSION"));
 
-static RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(
+const RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/target/RUNTIME_SNAPSHOT.bin"
 ));
