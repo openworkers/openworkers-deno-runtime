@@ -110,7 +110,7 @@ async fn main() -> std::io::Result<()> {
                 let script = Script {
                     specifier: url.clone(),
                     code: None,
-                    env: None,
+                    env: None
                 };
 
                 let (task_tx, mut task_rx) = tokio::sync::mpsc::channel(1);
@@ -119,7 +119,7 @@ async fn main() -> std::io::Result<()> {
                     let local = tokio::task::LocalSet::new();
 
                     let tasks = local.spawn_local(async move {
-                        let mut worker = Worker::new(script).await.unwrap();
+                        let mut worker = Worker::new(script, None).await.unwrap();
 
                         loop {
                             match task_rx.recv().await {

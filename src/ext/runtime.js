@@ -1,4 +1,5 @@
 // runtime.js
+import { op_log } from "ext:core/ops";
 
 // deno_core
 import { core, primordials } from "ext:core/mod.js";
@@ -178,7 +179,9 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
     console: nonEnumerable(
       // https://choubey.gitbook.io/internals-of-deno/bridge/4.2-print
-      new console.Console((msg, level) => core.print(msg, level > 1))
+      new console.Console((msg, level) =>
+        op_log(level > 1 ? "error" : "log", msg)
+      )
     ),
 
     // DOM Exception

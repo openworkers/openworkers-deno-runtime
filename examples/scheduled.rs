@@ -39,7 +39,7 @@ async fn main() -> Result<(), ()> {
     let script = Script {
         specifier: module_url(file_path.as_str()),
         code: None,
-        env: None,
+        env: None
     };
 
     let time = std::time::SystemTime::now()
@@ -51,7 +51,7 @@ async fn main() -> Result<(), ()> {
         let local = tokio::task::LocalSet::new();
 
         local.spawn_local(async move {
-            let mut worker = Worker::new(script).await.unwrap();
+            let mut worker = Worker::new(script, None).await.unwrap();
 
             match worker
                 .exec(Task::Scheduled(Some(ScheduledInit::new(res_tx, time))))

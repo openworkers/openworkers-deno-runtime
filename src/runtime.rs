@@ -2,8 +2,8 @@ use crate::ext::fetch_event_ext;
 use crate::ext::permissions_ext;
 use crate::ext::runtime_ext;
 use crate::ext::scheduled_event_ext;
-
 use crate::ext::Permissions;
+use crate::LogEvent;
 use crate::Task;
 
 use std::rc::Rc;
@@ -78,7 +78,7 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
 pub struct Script {
     pub specifier: deno_core::ModuleSpecifier,
     pub code: Option<deno_core::ModuleCodeString>,
-    pub env: Option<String>,
+    pub env: Option<String>
 }
 
 pub struct Worker {
@@ -88,7 +88,7 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub async fn new(script: Script) -> Result<Self, AnyError> {
+    pub async fn new(script: Script, log_tx: Option<std::sync::mpsc::Sender<LogEvent>>) -> Result<Self, AnyError> {
         let mut js_runtime = match runtime_snapshot() {
             None => {
                 debug!("no runtime snapshot");
@@ -116,6 +116,16 @@ impl Worker {
 
         let trigger_fetch;
         let trigger_scheduled;
+
+        // Log event sender
+        {
+            match log_tx {
+                Some(tx) => js_runtime.op_state().borrow_mut().put::<std::sync::mpsc::Sender<LogEvent>>(tx),
+                None => {
+                    log::warn!("no log event sender provided");
+                },
+            };
+        }
 
         // Bootstrap
         {

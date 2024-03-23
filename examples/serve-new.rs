@@ -41,7 +41,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     let script = Script {
         specifier: url.clone(),
         code: None,
-        env: None,
+        env: None
     };
 
     let (res_tx, res_rx) = channel::<http_v02::Response<Bytes>>();
@@ -52,7 +52,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
 
         let tasks = local.spawn_local(async move {
             debug!("create worker");
-            let mut worker = Worker::new(script).await.unwrap();
+            let mut worker = Worker::new(script, None).await.unwrap();
 
             debug!("exec fetch task");
             match worker.exec(task).await {

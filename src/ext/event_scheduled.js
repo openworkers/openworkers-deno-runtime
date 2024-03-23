@@ -19,7 +19,7 @@ function triggerScheduledEvent(rid) {
   const evt = op_scheduled_init(rid);
 
   // Convert seconds to milliseconds
-  const scheduledTime = evt.time * 1000;
+  const scheduledTime = evt.time;
 
   scheduledEventListener({
     scheduledTime,

@@ -4,6 +4,7 @@ mod event_fetch;
 mod event_scheduled;
 
 pub use runtime::runtime as runtime_ext;
+pub use runtime::LogEvent;
 
 pub use event_fetch::fetch_event as fetch_event_ext;
 pub use event_fetch::FetchInit;
