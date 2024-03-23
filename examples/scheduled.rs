@@ -2,6 +2,7 @@ use log::debug;
 use log::error;
 use openworkers_runtime::module_url;
 use openworkers_runtime::ScheduledInit;
+use openworkers_runtime::Script;
 use openworkers_runtime::Task;
 use openworkers_runtime::Worker;
 use tokio::sync::oneshot;
@@ -35,7 +36,10 @@ async fn main() -> Result<(), ()> {
     let (res_tx, res_rx) = oneshot::channel::<()>();
     let (end_tx, end_rx) =  oneshot::channel::<()>();
 
-    let url = module_url(file_path.as_str());
+    let script = Script {
+        specifier: module_url(file_path.as_str()),
+        code: None,
+    };
 
     let time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -46,7 +50,7 @@ async fn main() -> Result<(), ()> {
         let local = tokio::task::LocalSet::new();
 
         local.spawn_local(async move {
-            let mut worker = Worker::new(url).await.unwrap();
+            let mut worker = Worker::new(script).await.unwrap();
 
             match worker
                 .exec(Task::Scheduled(Some(ScheduledInit::new(res_tx, time))))

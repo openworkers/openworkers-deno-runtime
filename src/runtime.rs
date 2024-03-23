@@ -75,6 +75,11 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
     exts
 }
 
+pub struct Script {
+    pub specifier: deno_core::ModuleSpecifier,
+    pub code: Option<deno_core::ModuleCodeString>
+}
+
 pub struct Worker {
     pub(crate) js_runtime: deno_core::JsRuntime,
     pub(crate) trigger_fetch: deno_core::v8::Global<deno_core::v8::Function>,
@@ -82,7 +87,7 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub async fn new(main_module: Url) -> Result<Self, AnyError> {
+    pub async fn new(script: Script) -> Result<Self, AnyError> {
         let mut js_runtime = match runtime_snapshot() {
             None => {
                 debug!("no runtime snapshot");
@@ -140,7 +145,7 @@ impl Worker {
 
         // Eval main module
         {
-            let mod_id = js_runtime.load_main_module(&main_module, None).await?;
+            let mod_id = js_runtime.load_main_module(&script.specifier, script.code).await?;
 
             let result = js_runtime.mod_evaluate(mod_id);
 

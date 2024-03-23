@@ -3,6 +3,7 @@ use bytes::Bytes;
 use log::debug;
 use log::error;
 use openworkers_runtime::FetchInit;
+use openworkers_runtime::Script;
 use openworkers_runtime::Task;
 use openworkers_runtime::Url;
 use openworkers_runtime::Worker;
@@ -106,7 +107,10 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new({
                 let path = get_path();
                 let url: Url = openworkers_runtime::module_url(path.as_str());
-                let url_clone = url.clone();
+                let script = Script {
+                    specifier: url.clone(),
+                    code: None,
+                };
 
                 let (task_tx, mut task_rx) = tokio::sync::mpsc::channel(1);
 
@@ -114,7 +118,7 @@ async fn main() -> std::io::Result<()> {
                     let local = tokio::task::LocalSet::new();
 
                     let tasks = local.spawn_local(async move {
-                        let mut worker = Worker::new(url_clone).await.unwrap();
+                        let mut worker = Worker::new(script).await.unwrap();
 
                         loop {
                             match task_rx.recv().await {

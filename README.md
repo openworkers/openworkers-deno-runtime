@@ -14,7 +14,7 @@ cargo build --release --examples
 
 ### Snapshot the runtime
 ```bash
-cargo run --example snapshot
+cargo run --bin snapshot
 ```
 
 ### Run the demo server 

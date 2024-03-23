@@ -3,6 +3,7 @@ use bytes::Bytes;
 use log::debug;
 use log::error;
 use openworkers_runtime::FetchInit;
+use openworkers_runtime::Script;
 use openworkers_runtime::Task;
 use openworkers_runtime::Url;
 use openworkers_runtime::Worker;
@@ -37,7 +38,10 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
         .body(Default::default())
         .unwrap();
 
-    let url_clone = url.clone();
+    let script = Script {
+        specifier: url.clone(),
+        code: None,
+    };
 
     let (res_tx, res_rx) = channel::<http_v02::Response<Bytes>>();
     let task = Task::Fetch(Some(FetchInit::new(req, res_tx)));
@@ -47,7 +51,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
 
         let tasks = local.spawn_local(async move {
             debug!("create worker");
-            let mut worker = Worker::new(url_clone).await.unwrap();
+            let mut worker = Worker::new(script).await.unwrap();
 
             debug!("exec fetch task");
             match worker.exec(task).await {
