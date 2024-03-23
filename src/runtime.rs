@@ -19,12 +19,9 @@ use log::debug;
 
 const USER_AGENT: &str = concat!("OpenWorkers/", env!("CARGO_PKG_VERSION"));
 
-const RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/target/RUNTIME_SNAPSHOT.bin"
-));
+const RUNTIME_SNAPSHOT: &[u8] = include_bytes!(env!("RUNTIME_SNAPSHOT_PATH"));
 
-pub (crate) fn user_agent() -> String {
+pub(crate) fn user_agent() -> String {
     USER_AGENT.to_string()
 }
 
@@ -78,7 +75,7 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
 pub struct Script {
     pub specifier: deno_core::ModuleSpecifier,
     pub code: Option<deno_core::ModuleCodeString>,
-    pub env: Option<String>
+    pub env: Option<String>,
 }
 
 pub struct Worker {
@@ -88,7 +85,10 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub async fn new(script: Script, log_tx: Option<std::sync::mpsc::Sender<LogEvent>>) -> Result<Self, AnyError> {
+    pub async fn new(
+        script: Script,
+        log_tx: Option<std::sync::mpsc::Sender<LogEvent>>,
+    ) -> Result<Self, AnyError> {
         let mut js_runtime = match runtime_snapshot() {
             None => {
                 debug!("no runtime snapshot");
@@ -120,16 +120,23 @@ impl Worker {
         // Log event sender
         {
             match log_tx {
-                Some(tx) => js_runtime.op_state().borrow_mut().put::<std::sync::mpsc::Sender<LogEvent>>(tx),
+                Some(tx) => js_runtime
+                    .op_state()
+                    .borrow_mut()
+                    .put::<std::sync::mpsc::Sender<LogEvent>>(tx),
                 None => {
                     log::warn!("no log event sender provided");
-                },
+                }
             };
         }
 
         // Bootstrap
         {
-            let script = format!("globalThis.bootstrap('{}', {})", user_agent(), script.env.unwrap_or("undefined".to_string()));
+            let script = format!(
+                "globalThis.bootstrap('{}', {})",
+                user_agent(),
+                script.env.unwrap_or("undefined".to_string())
+            );
             let script = deno_core::ModuleCodeString::from(script);
 
             match js_runtime.execute_script(deno_core::located_script_name!(), script) {
@@ -145,8 +152,10 @@ impl Worker {
                         Err(err) => panic!("failed to convert triggers to object: {:?}", err),
                     };
 
-                    trigger_fetch = crate::util::extract_trigger("fetch", scope, object).expect("fetch trigger not found");
-                    trigger_scheduled = crate::util::extract_trigger("scheduled", scope, object).expect("scheduled trigger not found");
+                    trigger_fetch = crate::util::extract_trigger("fetch", scope, object)
+                        .expect("fetch trigger not found");
+                    trigger_scheduled = crate::util::extract_trigger("scheduled", scope, object)
+                        .expect("scheduled trigger not found");
                 }
                 Err(err) => panic!("bootstrap failed: {:?}", err),
             }
@@ -156,7 +165,9 @@ impl Worker {
 
         // Eval main module
         {
-            let mod_id = js_runtime.load_main_module(&script.specifier, script.code).await?;
+            let mod_id = js_runtime
+                .load_main_module(&script.specifier, script.code)
+                .await?;
 
             let result = js_runtime.mod_evaluate(mod_id);
 

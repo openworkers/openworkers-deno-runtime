@@ -9,14 +9,13 @@ use std::env;
 use std::path::PathBuf;
 use std::fs::File;
 
-const RUNTIME_SNAPSHOT_PATH: Option<&str> = option_env!("RUNTIME_SNAPSHOT_PATH");
-const DEFAULT_SNAPSHOT_PATH: &str = "/tmp/openworkers-runtime-snapshot.bin";
+const RUNTIME_SNAPSHOT_PATH: &str = env!("RUNTIME_SNAPSHOT_PATH");
 
 pub fn create_runtime_snapshot() {
     println!("Building snapshot");
 
     // Build the file path to the snapshot.
-    let snapshot_path = PathBuf::from(RUNTIME_SNAPSHOT_PATH.unwrap_or(DEFAULT_SNAPSHOT_PATH));
+    let snapshot_path = PathBuf::from(RUNTIME_SNAPSHOT_PATH);
 
     let serializer: SnapshotFileSerializer = SnapshotFileSerializer::new(File::create(snapshot_path).unwrap());
 
