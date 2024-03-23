@@ -77,7 +77,8 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
 
 pub struct Script {
     pub specifier: deno_core::ModuleSpecifier,
-    pub code: Option<deno_core::ModuleCodeString>
+    pub code: Option<deno_core::ModuleCodeString>,
+    pub env: Option<String>,
 }
 
 pub struct Worker {
@@ -118,7 +119,7 @@ impl Worker {
 
         // Bootstrap
         {
-            let script = format!("globalThis.bootstrap('{}')", user_agent());
+            let script = format!("globalThis.bootstrap('{}', {})", user_agent(), script.env.unwrap_or("undefined".to_string()));
             let script = deno_core::ModuleCodeString::from(script);
 
             match js_runtime.execute_script(deno_core::located_script_name!(), script) {

@@ -110,6 +110,7 @@ async fn main() -> std::io::Result<()> {
                 let script = Script {
                     specifier: url.clone(),
                     code: None,
+                    env: None,
                 };
 
                 let (task_tx, mut task_rx) = tokio::sync::mpsc::channel(1);

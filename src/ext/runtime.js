@@ -367,7 +367,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     }
   }
 
-  globalThis.bootstrap = (agent) => {
+  globalThis.bootstrap = (agent, env) => {
     if (hasBootstrapped) {
       throw new Error("Worker runtime already bootstrapped");
     }
@@ -400,6 +400,13 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
       writable: true,
       enumerable: false,
       configurable: true,
+    });
+
+    ObjectDefineProperty(globalThis, "env", {
+      value: env,
+      writable: false,
+      enumerable: true,
+      configurable: false,
     });
 
     event.setEventTargetData(globalThis);

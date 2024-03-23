@@ -41,6 +41,7 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     let script = Script {
         specifier: url.clone(),
         code: None,
+        env: None,
     };
 
     let (res_tx, res_rx) = channel::<http_v02::Response<Bytes>>();

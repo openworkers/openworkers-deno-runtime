@@ -39,6 +39,7 @@ async fn main() -> Result<(), ()> {
     let script = Script {
         specifier: module_url(file_path.as_str()),
         code: None,
+        env: None,
     };
 
     let time = std::time::SystemTime::now()
