@@ -83,7 +83,7 @@ struct InnerRequest {
     method: String,
     url: String,
     headers: Vec<(String, String)>,
-    body: Option<String>,
+    body: Option<Bytes>,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,7 +102,10 @@ impl From<HttpRequest> for InnerRequest {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_str().unwrap().to_string()))
                 .collect(),
-            body: None,
+            body: match req.body().len() {
+                0 => None,
+                _ => Some(req.body().to_owned())
+            }
         }
     }
 }
