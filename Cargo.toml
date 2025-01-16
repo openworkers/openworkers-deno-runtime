@@ -16,12 +16,12 @@ deno_web = "0.170.0"
 deno_webidl = "0.139.0"
 env_logger = "0.11.2"
 http_v02 = { package = "http", version = "0.2.9" }
-log = "0.4.20"
-serde = { version = "1.0.197", features = ["derive"] }
-tokio = { version = "1.36.0", features = ["full"] }
+log = "0.4.25"
+serde = { version = "1.0.217", features = ["derive"] }
+tokio = { version = "1.43.0", features = ["full"] }
 
 [dev-dependencies]
-actix-web = { version = "4.5.1", features = ["macros"] }
+actix-web = { version = "4.9.0", features = ["macros"] }
 
 # https://doc.rust-lang.org/cargo/reference/profiles.html
 # https://github.com/johnthagen/min-sized-rust?tab=readme-ov-file#minimizing-rust-binary-size
