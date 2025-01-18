@@ -10,18 +10,18 @@ use openworkers_runtime::Worker;
 
 use tokio::sync::oneshot::channel;
 
-use actix_web::{App, HttpServer};
-
+use actix_web::App;
 use actix_web::web;
 use actix_web::web::Data;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
+use actix_web::HttpServer;
 
 struct AppState {
     url: Url,
 }
 
-async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse {
+async fn handle_request(data: Data<AppState>, req: HttpRequest, body: Bytes) -> HttpResponse {
     debug!(
         "handle_request of {}: {} {} in thread {:?}",
         data.url.path().split('/').last().unwrap(),
@@ -34,8 +34,14 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     let start = tokio::time::Instant::now();
 
     let req = http_v02::Request::builder()
-        .uri(req.uri())
-        .body(Default::default())
+        .uri(format!(
+            "{}://{}{}",
+            req.connection_info().scheme(),
+            req.connection_info().host(),
+            req.uri()
+        ))
+        .method(req.method())
+        .body(body)
         .unwrap();
 
     let script = Script {
@@ -88,9 +94,9 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
         }
     };
 
-    debug!("handle_request done in {}ms", start.elapsed().as_millis());
-
     handle.join().unwrap();
+
+    debug!("handle_request done in {}ms", start.elapsed().as_millis());
 
     response
 }

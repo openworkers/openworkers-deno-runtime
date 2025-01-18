@@ -1,3 +1,5 @@
+console.log("Hello from serve.js");
+
 addEventListener("fetch", (event) => {
   event.respondWith(
     handleRequest(event.request).catch(
@@ -10,7 +12,8 @@ let n = 0;
 
 async function handleRequest(request) {
   if (request.method !== "GET") {
-    return new Response("Method Not Allowed", { status: 405 });
+    const payload = await request.text();
+    return new Response(JSON.stringify({ payload }), { status: 200 });
   }
 
   if (request.url.startsWith("/favicon.ico")) {

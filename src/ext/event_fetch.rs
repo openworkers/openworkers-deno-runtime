@@ -1,12 +1,10 @@
 use std::rc::Rc;
 
 use bytes::Bytes;
-use deno_core::error::AnyError;
+use deno_core::error::ResourceError;
 use deno_core::op2;
 use deno_core::serde::Deserialize;
 use deno_core::serde::Serialize;
-use deno_core::Extension;
-use deno_core::ExtensionFileSource;
 use deno_core::OpState;
 use deno_core::ResourceId;
 use log::debug;
@@ -114,18 +112,14 @@ deno_core::extension!(
     fetch_event,
     deps = [deno_console, deno_fetch],
     ops = [op_fetch_init, op_fetch_respond],
-    customizer = |ext: &mut Extension| {
-        ext.esm_files.to_mut().push(ExtensionFileSource::new(
-            "ext:event_fetch.js",
-            include_str!("event_fetch.js"),
-        ));
-        ext.esm_entry_point = Some("ext:event_fetch.js");
-    }
+    esm = [
+        "ext:event_fetch.js" = "src/ext/event_fetch.js",
+    ]
 );
 
 #[op2]
 #[serde]
-fn op_fetch_init(state: &mut OpState, #[smi] rid: ResourceId) -> Result<FetchEvent, AnyError> {
+fn op_fetch_init(state: &mut OpState, #[smi] rid: ResourceId) -> Result<FetchEvent, ResourceError> {
     debug!("op_fetch_init {rid}");
 
     let evt = state.resource_table.take::<FetchInit>(rid).unwrap();
@@ -145,7 +139,7 @@ fn op_fetch_respond(
     state: &mut OpState,
     #[smi] rid: ResourceId,
     #[serde] res: FetchResponse,
-) -> Result<(), AnyError> {
+) -> Result<(), ResourceError> {
     debug!("op_fetch_respond with status {}", res.status);
 
     let tx = match state.resource_table.take::<FetchTx>(rid) {

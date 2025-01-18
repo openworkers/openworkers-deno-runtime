@@ -1,5 +1,3 @@
-use deno_core::Extension;
-use deno_core::ExtensionFileSource;
 use deno_core::OpState;
 use deno_core::serde::Serialize;
 
@@ -14,13 +12,10 @@ deno_core::extension!(
         scheduled_event
     ],
     ops = [op_log],
-    customizer = |ext: &mut Extension| {
-        ext.esm_files.to_mut().push(ExtensionFileSource::new(
-            "ext:runtime.js",
-            include_str!("runtime.js"),
-        ));
-        ext.esm_entry_point = Some("ext:runtime.js");
-    }
+    esm_entry_point = "ext:runtime.js",
+    esm = [
+        "ext:runtime.js" = "./src/ext/runtime.js",
+    ]
 );
 
 #[derive(Debug, Serialize)]
@@ -41,7 +36,7 @@ fn op_log(state: &mut OpState, #[string] level: &str, #[string] message: &str) {
     let tx = state.try_borrow_mut::<std::sync::mpsc::Sender<LogEvent>>();
 
     match tx {
-        None => log::warn!("failed to borrow log event sender"),
+        None => {},
         Some(tx) => match tx.send(evt) {
             Ok(_) => {},
             Err(_) => log::error!("failed to send log event"),

@@ -2,6 +2,7 @@ mod runtime;
 mod permissions;
 mod event_fetch;
 mod event_scheduled;
+mod noop;
 
 pub use runtime::runtime as runtime_ext;
 pub use runtime::LogEvent;
@@ -14,3 +15,5 @@ pub use event_scheduled::ScheduledInit;
 
 pub use permissions::permissions as permissions_ext;
 pub use permissions::Permissions;
+
+pub use noop::noop_ext;

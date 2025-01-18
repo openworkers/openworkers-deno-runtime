@@ -22,7 +22,7 @@ struct AppState {
     task_tx: tokio::sync::mpsc::Sender<Task>,
 }
 
-async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse {
+async fn handle_request(data: Data<AppState>, req: HttpRequest, body: Bytes) -> HttpResponse {
     debug!(
         "handle_request of {}: {} {} in thread {:?}",
         data.url.path().split('/').last().unwrap(),
@@ -36,8 +36,14 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest) -> HttpResponse 
     let (res_tx, res_rx) = channel::<http_v02::Response<Bytes>>();
 
     let req = http_v02::Request::builder()
-        .uri(req.uri())
-        .body(Default::default())
+        .uri(format!(
+            "{}://{}{}",
+            req.connection_info().scheme(),
+            req.connection_info().host(),
+            req.uri()
+        ))
+        .method(req.method())
+        .body(body)
         .unwrap();
 
     match data
