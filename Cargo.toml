@@ -1,19 +1,21 @@
 [package]
 name = "openworkers-runtime"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 bytes = { version = "1.5.0", features = ["serde"] }
-deno_console = "0.139.0"
-deno_core = "0.264.0"
-deno_crypto = "0.153.0"
-deno_fetch = "0.163.0"
-deno_url = "0.139.0"
-deno_web = "0.170.0"
-deno_webidl = "0.139.0"
+deno_console = "0.186.0"
+deno_core = "0.330.0"
+deno_crypto = "0.200.0"
+deno_error = "0.5.3"
+deno_fetch = "0.210.0"
+deno_permissions = "0.45.0"
+deno_url = "0.186.0"
+deno_web = "0.217.0"
+deno_webidl = "0.186.0"
 env_logger = "0.11.2"
 http_v02 = { package = "http", version = "0.2.9" }
 log = "0.4.25"

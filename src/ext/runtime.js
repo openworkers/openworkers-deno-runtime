@@ -419,7 +419,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     event.defineEventHandler(globalThis, "message");
     event.defineEventHandler(globalThis, "unhandledrejection");
 
-    core.setMacrotaskCallback(timers.handleTimerMacrotask);
+    // core.setMacrotaskCallback(timers.handleTimerMacrotask);
     core.setReportExceptionCallback(event.reportException);
 
     // core.setWasmStreamingCallback(fetch.handleWasmStreaming);

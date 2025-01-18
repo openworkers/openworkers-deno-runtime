@@ -13,6 +13,7 @@ fn main () {
 
     // Create the file if it doesn't exist
     if !path.exists() {
+        println!("Creating empty snapshot file: {:?}", path);
         File::create(&path).unwrap();
     }
 }

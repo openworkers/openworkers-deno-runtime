@@ -4,7 +4,7 @@ import {
   guardFromHeaders,
   headersFromHeaderList,
 } from "ext:deno_fetch/20_headers.js";
-import { extractBody } from "ext:deno_fetch/22_body.js";
+import { InnerBody } from "ext:deno_fetch/22_body.js";
 import {
   newInnerRequest,
   fromInnerRequest,
@@ -32,13 +32,15 @@ function triggerFetchEvent(rid) {
 
   const signal = newSignal();
 
-  const { body } = extractBody(evt.req.body);
+  const innerBody = evt.req.body
+    ? new InnerBody({ body: evt.req.body, consumed: false })
+    : null;
 
   const inner = newInnerRequest(
     evt.req.method,
-    evt.req.url,
+    () => evt.req.url,
     () => evt.req.headers,
-    body
+    innerBody
   );
 
   const guard = guardFromHeaders(headersFromHeaderList(inner.headerList));
@@ -56,7 +58,7 @@ function triggerFetchEvent(rid) {
 
       const inner = toInnerResponse(response);
 
-      const body = await response.arrayBuffer();
+      const body = await response.bytes();
 
       op_fetch_respond(evt.rid, { ...inner, body });
     },

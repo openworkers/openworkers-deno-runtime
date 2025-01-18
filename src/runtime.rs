@@ -1,4 +1,5 @@
 use crate::ext::fetch_event_ext;
+use crate::ext::noop_ext;
 use crate::ext::permissions_ext;
 use crate::ext::runtime_ext;
 use crate::ext::scheduled_event_ext;
@@ -9,11 +10,11 @@ use crate::Task;
 use std::rc::Rc;
 
 use deno_core::error::AnyError;
+use deno_core::error::CoreError;
 use deno_core::JsRuntime;
 
 use deno_core::url::Url;
 use deno_core::v8;
-use deno_core::Snapshot;
 
 use log::debug;
 
@@ -31,14 +32,14 @@ pub fn module_url(path_str: &str) -> Url {
     deno_core::resolve_path(path_str, current_dir).unwrap()
 }
 
-pub(crate) fn runtime_snapshot() -> Option<Snapshot> {
+pub(crate) fn runtime_snapshot() -> Option<&'static [u8]> {
     match RUNTIME_SNAPSHOT.len() {
         0 => None,
-        _ => Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
+        _ => Some(RUNTIME_SNAPSHOT),
     }
 }
 
-pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
+pub(crate) fn extensions(skip_esm: bool) -> Vec<deno_core::Extension> {
     let mut exts = vec![
         deno_webidl::deno_webidl::init_ops_and_esm(),
         deno_console::deno_console::init_ops_and_esm(),
@@ -53,13 +54,14 @@ pub(crate) fn extensions(for_snapshot: bool) -> Vec<deno_core::Extension> {
             ..Default::default()
         }),
         // OpenWorkers extensions
+        noop_ext::init_ops_and_esm(),
         fetch_event_ext::init_ops_and_esm(),
         scheduled_event_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),
         permissions_ext::init_ops(),
     ];
 
-    if !for_snapshot {
+    if !skip_esm {
         return exts;
     }
 
@@ -89,30 +91,22 @@ impl Worker {
         script: Script,
         log_tx: Option<std::sync::mpsc::Sender<LogEvent>>,
     ) -> Result<Self, AnyError> {
-        let mut js_runtime = match runtime_snapshot() {
-            None => {
-                debug!("no runtime snapshot");
-                JsRuntime::new(deno_core::RuntimeOptions {
-                    is_main: true,
-                    extensions: extensions(false),
-                    module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-                    startup_snapshot: None,
-                    ..Default::default()
-                })
-            }
-            Some(snapshot) => {
-                debug!("using runtime snapshot");
-                JsRuntime::new(deno_core::RuntimeOptions {
-                    is_main: true,
-                    extensions: extensions(true),
-                    module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
-                    startup_snapshot: Some(snapshot),
-                    ..Default::default()
-                })
-            }
-        };
+        let startup_snapshot = runtime_snapshot();
+        let snapshot_is_some = startup_snapshot.is_some();
 
-        debug!("runtime created, bootstrapping...");
+        let mut js_runtime = JsRuntime::new(deno_core::RuntimeOptions {
+            is_main: true,
+            extensions: extensions(snapshot_is_some),
+            module_loader: Some(Rc::new(deno_core::FsModuleLoader)),
+            startup_snapshot,
+            extension_transpiler: None,
+            ..Default::default()
+        });
+
+        debug!(
+            "runtime created ({} snapshot), bootstrapping...",
+            if snapshot_is_some { "with" } else { "without" }
+        );
 
         let trigger_fetch;
         let trigger_scheduled;
@@ -165,9 +159,12 @@ impl Worker {
 
         // Eval main module
         {
-            let mod_id = js_runtime
-                .load_main_module(&script.specifier, script.code)
-                .await?;
+            let mod_id = js_runtime.load_main_es_module(&script.specifier).await;
+
+            let mod_id = match mod_id {
+                Ok(mod_id) => mod_id,
+                Err(err) => panic!("failed to load main module: {:?}", err),
+            };
 
             let result = js_runtime.mod_evaluate(mod_id);
 
@@ -190,7 +187,7 @@ impl Worker {
         })
     }
 
-    pub async fn exec(&mut self, mut task: Task) -> Result<(), AnyError> {
+    pub async fn exec(&mut self, mut task: Task) -> Result<(), CoreError> {
         debug!("executing task {:?}", task.task_type());
 
         crate::util::exec_task(self, &mut task);
