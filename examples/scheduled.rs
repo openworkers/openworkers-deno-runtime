@@ -1,6 +1,5 @@
 use log::debug;
 use log::error;
-use openworkers_runtime::module_url;
 use openworkers_runtime::ScheduledInit;
 use openworkers_runtime::Script;
 use openworkers_runtime::Task;
@@ -37,8 +36,7 @@ async fn main() -> Result<(), ()> {
     let (end_tx, end_rx) =  oneshot::channel::<()>();
 
     let script = Script {
-        specifier: module_url(file_path.as_str()),
-        code: None,
+        code: std::fs::read_to_string(file_path).unwrap(),
         env: None
     };
 

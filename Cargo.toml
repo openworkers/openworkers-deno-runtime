@@ -1,12 +1,12 @@
 [package]
 name = "openworkers-runtime"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bytes = { version = "1.5.0", features = ["serde"] }
+bytes = { version = "1.9.0", features = ["serde"] }
 deno_console = "0.186.0"
 deno_core = "0.330.0"
 deno_crypto = "0.200.0"
@@ -16,8 +16,8 @@ deno_permissions = "0.45.0"
 deno_url = "0.186.0"
 deno_web = "0.217.0"
 deno_webidl = "0.186.0"
-env_logger = "0.11.2"
-http_v02 = { package = "http", version = "0.2.9" }
+env_logger = "0.11.6"
+http_v02 = { package = "http", version = "0.2.12" }
 log = "0.4.25"
 serde = { version = "1.0.217", features = ["derive"] }
 tokio = { version = "1.43.0", features = ["full"] }

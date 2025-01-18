@@ -1,3 +1,4 @@
+use crate::env::ToJsonString;
 use crate::ext::fetch_event_ext;
 use crate::ext::noop_ext;
 use crate::ext::permissions_ext;
@@ -7,14 +8,14 @@ use crate::ext::Permissions;
 use crate::LogEvent;
 use crate::Task;
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use deno_core::error::AnyError;
 use deno_core::error::CoreError;
-use deno_core::JsRuntime;
-
 use deno_core::url::Url;
 use deno_core::v8;
+use deno_core::JsRuntime;
 
 use log::debug;
 
@@ -22,14 +23,14 @@ const USER_AGENT: &str = concat!("OpenWorkers/", env!("CARGO_PKG_VERSION"));
 
 const RUNTIME_SNAPSHOT: &[u8] = include_bytes!(env!("RUNTIME_SNAPSHOT_PATH"));
 
-pub(crate) fn user_agent() -> String {
-    USER_AGENT.to_string()
-}
-
-pub fn module_url(path_str: &str) -> Url {
+fn module_url(path_str: &str) -> Url {
     let current_dir = std::env::current_dir().unwrap();
     let current_dir = current_dir.as_path();
     deno_core::resolve_path(path_str, current_dir).unwrap()
+}
+
+pub(crate) fn user_agent() -> String {
+    USER_AGENT.to_string()
 }
 
 pub(crate) fn runtime_snapshot() -> Option<&'static [u8]> {
@@ -75,9 +76,8 @@ pub(crate) fn extensions(skip_esm: bool) -> Vec<deno_core::Extension> {
 }
 
 pub struct Script {
-    pub specifier: deno_core::ModuleSpecifier,
-    pub code: Option<deno_core::ModuleCodeString>,
-    pub env: Option<String>,
+    pub code: String,
+    pub env: Option<HashMap<String, String>>,
 }
 
 pub struct Worker {
@@ -129,7 +129,7 @@ impl Worker {
             let script = format!(
                 "globalThis.bootstrap('{}', {})",
                 user_agent(),
-                script.env.unwrap_or("undefined".to_string())
+                script.env.to_json_string()
             );
             let script = deno_core::ModuleCodeString::from(script);
 
@@ -159,7 +159,11 @@ impl Worker {
 
         // Eval main module
         {
-            let mod_id = js_runtime.load_main_es_module(&script.specifier).await;
+            let specifier = module_url("worker.js");
+
+            let mod_id = js_runtime
+                .load_main_es_module_from_code(&specifier, script.code)
+                .await;
 
             let mod_id = match mod_id {
                 Ok(mod_id) => mod_id,

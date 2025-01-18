@@ -5,32 +5,29 @@ use log::error;
 use openworkers_runtime::FetchInit;
 use openworkers_runtime::Script;
 use openworkers_runtime::Task;
-use openworkers_runtime::Url;
 use openworkers_runtime::Worker;
 
 use tokio::sync::oneshot::channel;
 
-use actix_web::App;
 use actix_web::web;
 use actix_web::web::Data;
+use actix_web::App;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 use actix_web::HttpServer;
 
 struct AppState {
-    url: Url,
+    code: String,
 }
 
 async fn handle_request(data: Data<AppState>, req: HttpRequest, body: Bytes) -> HttpResponse {
     debug!(
-        "handle_request of {}: {} {} in thread {:?}",
-        data.url.path().split('/').last().unwrap(),
+        "handle_request of: {} {} in thread {:?}",
         req.method(),
         req.uri(),
         std::thread::current().id()
     );
 
-    let url = data.url.clone();
     let start = tokio::time::Instant::now();
 
     let req = http_v02::Request::builder()
@@ -45,9 +42,8 @@ async fn handle_request(data: Data<AppState>, req: HttpRequest, body: Bytes) -> 
         .unwrap();
 
     let script = Script {
-        specifier: url.clone(),
-        code: None,
-        env: None
+        code: data.code.clone(),
+        env: None,
     };
 
     let (res_tx, res_rx) = channel::<http_v02::Response<Bytes>>();
@@ -107,6 +103,10 @@ fn get_path() -> String {
         .unwrap_or_else(|| String::from("examples/serve.js"))
 }
 
+fn get_code() -> String {
+    std::fs::read_to_string(get_path()).unwrap()
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     if !std::env::var("RUST_LOG").is_ok() {
@@ -130,12 +130,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
-            .app_data(Data::new({
-                let path = get_path();
-                let url: Url = openworkers_runtime::module_url(path.as_str());
-
-                AppState { url }
-            }))
+            .app_data(Data::new(AppState { code: get_code() }))
             .default_service(web::to(handle_request))
     })
     .bind(("127.0.0.1", 8080))?

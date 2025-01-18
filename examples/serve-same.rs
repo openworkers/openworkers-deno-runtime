@@ -5,7 +5,6 @@ use log::error;
 use openworkers_runtime::FetchInit;
 use openworkers_runtime::Script;
 use openworkers_runtime::Task;
-use openworkers_runtime::Url;
 use openworkers_runtime::Worker;
 
 use tokio::sync::oneshot::channel;
@@ -18,14 +17,12 @@ use actix_web::HttpRequest;
 use actix_web::HttpResponse;
 
 struct AppState {
-    url: Url,
     task_tx: tokio::sync::mpsc::Sender<Task>,
 }
 
 async fn handle_request(data: Data<AppState>, req: HttpRequest, body: Bytes) -> HttpResponse {
     debug!(
-        "handle_request of {}: {} {} in thread {:?}",
-        data.url.path().split('/').last().unwrap(),
+        "handle_request: {} {} in thread {:?}",
         req.method(),
         req.uri(),
         std::thread::current().id()
@@ -87,6 +84,10 @@ fn get_path() -> String {
         .unwrap_or_else(|| String::from("examples/serve.js"))
 }
 
+fn get_code() -> String {
+    std::fs::read_to_string(get_path()).unwrap()
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     if !std::env::var("RUST_LOG").is_ok() {
@@ -111,12 +112,9 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new({
-                let path = get_path();
-                let url: Url = openworkers_runtime::module_url(path.as_str());
                 let script = Script {
-                    specifier: url.clone(),
-                    code: None,
-                    env: None
+                    code: get_code(),
+                    env: None,
                 };
 
                 let (task_tx, mut task_rx) = tokio::sync::mpsc::channel(1);
@@ -152,7 +150,7 @@ async fn main() -> std::io::Result<()> {
                     }
                 });
 
-                AppState { task_tx, url }
+                AppState { task_tx }
             }))
             .default_service(web::to(handle_request))
     })
