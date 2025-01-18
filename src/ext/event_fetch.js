@@ -1,17 +1,9 @@
 import { core } from "ext:core/mod.js";
 import { newSignal } from "ext:deno_web/03_abort_signal.js";
-import {
-  guardFromHeaders,
-  headersFromHeaderList,
-} from "ext:deno_fetch/20_headers.js";
-import { InnerBody } from "ext:deno_fetch/22_body.js";
-import {
-  newInnerRequest,
-  fromInnerRequest,
-} from "ext:deno_fetch/23_request.js";
-import { toInnerResponse, Response } from "ext:deno_fetch/23_response.js";
-
 import { op_fetch_init, op_fetch_respond } from "ext:core/ops";
+
+import { fromInnerRequest } from "ext:ow_fetch/23_request.js";
+import { toInnerResponse, Response } from "ext:ow_fetch/23_response.js";
 
 let fetchEventListener;
 
@@ -32,21 +24,8 @@ function triggerFetchEvent(rid) {
 
   const signal = newSignal();
 
-  const innerBody = evt.req.body
-    ? new InnerBody({ body: evt.req.body, consumed: false })
-    : null;
-
-  const inner = newInnerRequest(
-    evt.req.method,
-    () => evt.req.url,
-    () => evt.req.headers,
-    innerBody
-  );
-
-  const guard = guardFromHeaders(headersFromHeaderList(inner.headerList));
-
   fetchEventListener({
-    request: fromInnerRequest(inner, signal, guard),
+    request: fromInnerRequest(evt.req, signal),
     respondWith: async (resOrPromise) => {
       let response = core.isPromise(resOrPromise)
         ? await resOrPromise

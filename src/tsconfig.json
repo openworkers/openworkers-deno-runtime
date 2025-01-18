@@ -9,7 +9,8 @@
     "allowJs": true,
     "baseUrl": ".",
     "paths": {
-      "ext:*": ["ext/*"]
+      "ext:*": ["ext/*"],
+      "ext:ow_*": ["ext/*"]
     }
   }
 }

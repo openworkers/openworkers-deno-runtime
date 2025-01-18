@@ -59,6 +59,13 @@ declare module "ext:deno_web/03_abort_signal.js" {
   export const newSignal: () => AbortSignal;
 }
 
+declare module "ext:deno_web/08_text_encoding.js" {
+  export const TextEncoder: any;
+  export const TextDecoder: any;
+  export const TextEncoderStream: any;
+  export const TextDecoderStream: any;
+}
+
 declare module "ext:deno_fetch/20_headers.js" {
   export type HeaderList = Array<[string, string]>;
 

@@ -1,5 +1,5 @@
 use crate::ext::fetch_event_ext;
-use crate::ext::noop_ext;
+use crate::ext::ow_fetch;
 use crate::ext::permissions_ext;
 use crate::ext::runtime_ext;
 use crate::ext::scheduled_event_ext;
@@ -49,12 +49,8 @@ pub(crate) fn extensions(skip_esm: bool) -> Vec<deno_core::Extension> {
             None,
         ),
         deno_crypto::deno_crypto::init_ops_and_esm(None),
-        deno_fetch::deno_fetch::init_ops_and_esm::<Permissions>(deno_fetch::Options {
-            user_agent: user_agent(),
-            ..Default::default()
-        }),
         // OpenWorkers extensions
-        noop_ext::init_ops_and_esm(),
+        ow_fetch::init_ops_and_esm(),
         fetch_event_ext::init_ops_and_esm(),
         scheduled_event_ext::init_ops_and_esm(),
         runtime_ext::init_ops_and_esm(),

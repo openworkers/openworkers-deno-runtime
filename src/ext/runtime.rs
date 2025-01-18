@@ -7,7 +7,7 @@ deno_core::extension!(
         deno_console,
         deno_web,
         deno_crypto,
-        deno_fetch,
+        ow_fetch,
         fetch_event,
         scheduled_event
     ],

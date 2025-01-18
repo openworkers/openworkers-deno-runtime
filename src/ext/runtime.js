@@ -37,12 +37,12 @@ import * as urlPattern from "ext:deno_url/01_urlpattern.js";
 import * as crypto from "ext:deno_crypto/00_crypto.js";
 
 // deno_fetch
-import * as headers from "ext:deno_fetch/20_headers.js";
-import * as formData from "ext:deno_fetch/21_formdata.js";
-import * as request from "ext:deno_fetch/23_request.js";
-import * as response from "ext:deno_fetch/23_response.js";
-import * as fetch from "ext:deno_fetch/26_fetch.js";
-import * as eventSource from "ext:deno_fetch/27_eventsource.js";
+import * as headers from "ext:ow_fetch/20_headers.js";
+// import * as formData from "ext:deno_fetch/21_formdata.js";
+import * as request from "ext:ow_fetch/23_request.js";
+import * as response from "ext:ow_fetch/23_response.js";
+// import * as fetch from "ext:deno_fetch/26_fetch.js";
+// import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 
 {
   const { ObjectDefineProperties, ObjectDefineProperty, SymbolFor } =
@@ -281,23 +281,23 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     SubtleCrypto: nonEnumerable(crypto.SubtleCrypto),
 
     // Fetch
-    // deno_fetch - 20 - headers
+    // ow_fetch - 20 - headers
     Headers: nonEnumerable(headers.Headers),
 
     // deno_fetch - 21 - formdata
-    FormData: nonEnumerable(formData.FormData),
+    // FormData: nonEnumerable(formData.FormData),
 
-    // deno_fetch - 23 - request
+    // ow_fetch - 23 - request
     Request: nonEnumerable(request.Request),
 
-    // deno_fetch - 23 - response
+    // ow_fetch - 23 - response
     Response: nonEnumerable(response.Response),
 
     // deno_fetch - 26 - fetch
-    fetch: nonEnumerable(fetch.fetch),
+    // fetch: nonEnumerable(fetch.fetch),
 
     // deno_fetch - 27 - eventsource
-    EventSource: nonEnumerable(eventSource.EventSource),
+    // EventSource: nonEnumerable(eventSource.EventSource),
 
     // Events
     addEventListener: nonEnumerable(addEventListener),
@@ -422,7 +422,7 @@ import * as eventSource from "ext:deno_fetch/27_eventsource.js";
     // core.setMacrotaskCallback(timers.handleTimerMacrotask);
     core.setReportExceptionCallback(event.reportException);
 
-    // core.setWasmStreamingCallback(fetch.handleWasmStreaming);
+    op_log("log", "Worker runtime bootstrapped");
 
     // Return event trigger functions to be used by the host
     return {
