@@ -15,7 +15,7 @@ impl deno_web::TimersPermission for Permissions {
 
 impl deno_fetch::FetchPermissions for Permissions {
     fn check_net_url(&mut self, _url: &Url, _api_name: &str) -> Result<(), PermissionCheckError> {
-        println!("TODO check_net_url {:?}", _url); // TODO
+        println!("TODO check_net_url {}", _url.to_string()); // TODO
 
         Ok(()) // TODO
     }

@@ -38,11 +38,29 @@ declare module "ext:core/ops" {
 }
 
 declare module "ext:core/mod.js" {
+  type PromiseRejectCallback = (
+    promise: Promise<unknown>,
+    reason: any
+  ) => boolean;
+
+  type PromiseHandledCallback = (
+    promise: Promise<unknown>,
+    reason: any
+  ) => void;
+
   interface DenoCore {
-    encode(value: string): Uint8Array;
+    encode(input: string): Uint8Array;
+    decode(input: Uint8Array): string;
     ops: Record<string, (...args: unknown[]) => any>;
     asyncOps: Record<string, (...args: unknown[]) => any>;
     isPromise<T, V>(value: Promise<T> | V): value is Promise<T>;
+    print(message: string, is_err?: boolean): void;
+    setHandledPromiseRejectionHandler(cb: PromiseHandledCallback): void;
+    setUnhandledPromiseRejectionHandler(cb: PromiseRejectCallback): void;
+    setReportExceptionCallback(cb: (err: Error) => void): void;
+    setWasmStreamingCallback(cb: (source: any, rid: number) => void): void;
+    setMacrotaskCallback(cb: () => boolean): void;
+    setNextTickCallback(cb: () => void): void;
   }
 
   export const core: DenoCore;
@@ -58,6 +76,10 @@ declare module "ext:deno_web/03_abort_signal.js" {
   export const AbortController: any;
   export const newSignal: () => AbortSignal;
 }
+
+// declare module "ext:deno_web/06_streams.js" {
+//   export const readableStreamForRid;
+// }
 
 declare module "ext:deno_fetch/20_headers.js" {
   export type HeaderList = Array<[string, string]>;
